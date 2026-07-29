@@ -1,0 +1,26 @@
+# 환경설정과 Secret
+**/.env
+
+# Frontend
+**/node_modules/
+**/.next/
+**/out/
+**/coverage/
+**/*.tsbuildinfo
+**/next-env.d.ts
+npm-debug.log*
+
+# Backend
+**/.venv/
+**/__pycache__/
+**/*.py[cod]
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+**/.uv-cache/
+
+# Editor와 운영체제
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

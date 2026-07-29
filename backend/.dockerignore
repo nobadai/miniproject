@@ -1,0 +1,12 @@
+# 목적: Backend Build Context에서 Local 상태와 Secret을 제외한다.
+# 주요 역할: 재현에 필요한 Backend Source와 Dependency 파일만 Image에 전달한다.
+
+.env
+.git
+.gitignore
+.venv
+__pycache__
+*.py[cod]
+.pytest_cache
+.mypy_cache
+.ruff_cache

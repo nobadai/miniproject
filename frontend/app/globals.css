@@ -1,0 +1,10 @@
+/* 목적: Tailwind CSS를 불러오고 애플리케이션 전역 기본 스타일을 정의한다.
+ * 주요 역할: 모든 경로가 공유하는 최소한의 화면 기반을 제공한다.
+ */
+
+@import "tailwindcss";
+
+body {
+  font-family: Arial, Helvetica, sans-serif;
+  margin: 0;
+}

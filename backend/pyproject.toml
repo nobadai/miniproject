@@ -1,0 +1,13 @@
+# 목적: uv로 관리하는 Python Runtime과 Backend Dependency를 선언한다.
+# 주요 역할: FastAPI 애플리케이션의 재현 가능한 Dependency 정보를 제공한다.
+
+[project]
+name = "backend"
+version = "0.1.0"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "fastapi>=0.140.13",
+    "psycopg[binary]>=3.3.4",
+    "pydantic-settings>=2.14.2",
+    "uvicorn[standard]>=0.51.0",
+]
