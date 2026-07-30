@@ -18,6 +18,8 @@ npm-debug.log*
 **/.mypy_cache/
 **/.ruff_cache/
 **/.uv-cache/
+backend/tests/
+backend/artifacts/
 
 # Editor와 운영체제
 .DS_Store
