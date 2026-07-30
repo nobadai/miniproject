@@ -26,7 +26,8 @@ class Settings(BaseSettings):
     postgres_password: SecretStr = Field(min_length=1)
 
     openai_api_key: SecretStr | None = None
-    
+    anthropic_api_key: SecretStr | None = None
+
     cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:3000"])
 
     model_config = SettingsConfigDict(
