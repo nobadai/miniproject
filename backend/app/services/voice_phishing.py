@@ -9,16 +9,23 @@ from __future__ import annotations
 import re
 import string
 from dataclasses import dataclass, field
+from functools import lru_cache
 from pathlib import Path
 from typing import Iterable
 
 import yaml
+
+from .voice_phishing_model import KoElectraAnalyzer
 
 
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_CONFIG_PATH = (
     BACKEND_ROOT / "resources" / "voice_phishing" / "configs" / "keywords.yaml"
 )
+TRANSCRIPT_DIRECTORY = (
+    BACKEND_ROOT / "resources" / "voice_phishing" / "transcripts"
+)
+SUPPORTED_AUDIO_EXTENSIONS = {".mp3", ".wav", ".m4a"}
 PUNCTUATION_TRANSLATION = str.maketrans(
     "", "", string.punctuation + "·…‥「」『』〈〉《》\"\"''"
 )
@@ -232,6 +239,120 @@ class RuleScorer:
             confidence = "high" if score < normal_max - 0.20 else "medium"
             return "normal", confidence
         return "unknown", "low"
+
+
+class UnsupportedAudioFormatError(ValueError):
+    """지원하지 않는 오디오 확장자가 입력됐음을 나타낸다."""
+
+
+class PreparedTranscriptNotFoundError(FileNotFoundError):
+    """현재 단계에서 연결할 준비된 녹취가 없음을 나타낸다."""
+
+
+def analyze_prepared_audio(audio_filename: str) -> dict:
+    """업로드 오디오 식별자에 대응하는 준비된 TXT를 전체 분석한다."""
+    transcript_id, turns = load_prepared_transcript(audio_filename)
+    rule_result = RuleScorer().score_call(turns)
+    sequence_result = score_sequence(turns)
+    model_result = _get_koelectra_analyzer().score(turns)
+    prediction, reason = decide_prediction(
+        rule_result.score, model_result.score, sequence_result.score
+    )
+    raw_score = min(
+        0.10 * rule_result.score
+        + 0.80 * model_result.score
+        + 0.10 * sequence_result.score,
+        1.0,
+    )
+    if prediction == "suspicious":
+        fusion_score = max(raw_score, 0.75)
+    elif prediction == "normal":
+        fusion_score = min(raw_score, 0.449999)
+    else:
+        fusion_score = min(max(raw_score, 0.45), 0.749999)
+
+    return {
+        "audio_filename": Path(audio_filename).name,
+        "transcript_id": transcript_id,
+        "prediction": prediction,
+        "fusion_score": round(fusion_score, 6),
+        "rule_score": round(rule_result.score, 6),
+        "rule_categories": rule_result.categories_hit,
+        "sequence_score": round(sequence_result.score, 6),
+        "transitions": sequence_result.transitions,
+        "koelectra_score": round(model_result.score, 6),
+        "decision_reason": reason,
+        "turns": turns,
+    }
+
+
+def load_prepared_transcript(audio_filename: str) -> tuple[str, list[dict]]:
+    """오디오 파일명과 같은 식별자의 사전 변환 TXT를 읽는다."""
+    safe_filename = Path(audio_filename).name
+    if safe_filename != audio_filename or not safe_filename:
+        raise UnsupportedAudioFormatError("유효하지 않은 오디오 파일명입니다.")
+    suffix = Path(safe_filename).suffix.lower()
+    if suffix not in SUPPORTED_AUDIO_EXTENSIONS:
+        supported = ", ".join(sorted(SUPPORTED_AUDIO_EXTENSIONS))
+        raise UnsupportedAudioFormatError(
+            f"지원하지 않는 파일 형식입니다. 지원 형식: {supported}"
+        )
+
+    transcript_id = Path(safe_filename).stem
+    transcript_path = TRANSCRIPT_DIRECTORY / f"{transcript_id}.txt"
+    if not transcript_path.is_file():
+        raise PreparedTranscriptNotFoundError(
+            "준비된 텍스트가 없는 음성입니다. 현재 단계에서는 STT를 사용할 수 없습니다."
+        )
+    return transcript_id, parse_transcript(
+        transcript_path.read_text(encoding="utf-8")
+    )
+
+
+def parse_transcript(text: str) -> list[dict]:
+    """금융감독원 녹취의 사기범·피해자 발화를 표준 turns로 변환한다."""
+    speaker_mapping = {"사기범": "other", "피해자": "self"}
+    turns = []
+    for line in text.splitlines():
+        stripped_line = line.strip()
+        if not stripped_line or stripped_line.startswith("#"):
+            continue
+        speaker, separator, utterance = stripped_line.partition(":")
+        if not separator or speaker.strip() not in speaker_mapping:
+            continue
+        normalized_utterance = utterance.strip()
+        if normalized_utterance:
+            turns.append(
+                {
+                    "idx": len(turns),
+                    "speaker": speaker_mapping[speaker.strip()],
+                    "text": normalized_utterance,
+                }
+            )
+    if not turns:
+        raise ValueError("준비된 텍스트에 분석 가능한 발화가 없습니다.")
+    return turns
+
+
+def decide_prediction(
+    rule_score: float, model_score: float, sequence_score: float
+) -> tuple[str, str]:
+    """배포 모델 점수와 규칙·시퀀스 근거를 이용해 최종 판정한다."""
+    if rule_score >= 0.75 and sequence_score >= 0.80:
+        return "suspicious", "strong_rule_and_sequence"
+    if model_score >= 0.80:
+        return "suspicious", "model_high"
+    if model_score >= 0.70 and sequence_score >= 0.75:
+        return "suspicious", "model_and_sequence"
+    if model_score <= 0.30 and rule_score < 0.45 and sequence_score < 0.45:
+        return "normal", "all_signals_low"
+    return "unknown", "signals_conflict_or_uncertain"
+
+
+@lru_cache(maxsize=1)
+def _get_koelectra_analyzer() -> KoElectraAnalyzer:
+    """요청마다 GPU 모델을 다시 적재하지 않도록 한 인스턴스를 공유한다."""
+    return KoElectraAnalyzer()
 
 
 def score_sequence(turns: list[dict]) -> SequenceScore:
