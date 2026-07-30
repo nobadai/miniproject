@@ -21,6 +21,7 @@ class VoicePhishingAnalysis(BaseModel):
     audio_filename: str
     transcript_id: str
     prediction: str
+    fusion_raw_score: float
     fusion_score: float
     rule_score: float
     rule_categories: list[str]

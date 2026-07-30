@@ -26,6 +26,9 @@ TRANSCRIPT_DIRECTORY = (
     BACKEND_ROOT / "resources" / "voice_phishing" / "transcripts"
 )
 SUPPORTED_AUDIO_EXTENSIONS = {".mp3", ".wav", ".m4a"}
+RULE_SCORE_WEIGHT = 0.33
+KOELECTRA_SCORE_WEIGHT = 0.34
+SEQUENCE_SCORE_WEIGHT = 0.33
 PUNCTUATION_TRANSLATION = str.maketrans(
     "", "", string.punctuation + "·…‥「」『』〈〉《》\"\"''"
 )
@@ -259,9 +262,9 @@ def analyze_prepared_audio(audio_filename: str) -> dict:
         rule_result.score, model_result.score, sequence_result.score
     )
     raw_score = min(
-        0.10 * rule_result.score
-        + 0.80 * model_result.score
-        + 0.10 * sequence_result.score,
+        RULE_SCORE_WEIGHT * rule_result.score
+        + KOELECTRA_SCORE_WEIGHT * model_result.score
+        + SEQUENCE_SCORE_WEIGHT * sequence_result.score,
         1.0,
     )
     if prediction == "suspicious":
@@ -275,6 +278,7 @@ def analyze_prepared_audio(audio_filename: str) -> dict:
         "audio_filename": Path(audio_filename).name,
         "transcript_id": transcript_id,
         "prediction": prediction,
+        "fusion_raw_score": round(raw_score, 6),
         "fusion_score": round(fusion_score, 6),
         "rule_score": round(rule_result.score, 6),
         "rule_categories": rule_result.categories_hit,
