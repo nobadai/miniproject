@@ -19,11 +19,16 @@ services:
       - ./backend/.env
     environment:
       POSTGRES_HOST: database
-    gpus: all
+    # GPU가 없는 환경에서도 기동되어야 하므로 기본값에서 뺀다.
+    # NVIDIA GPU와 Container Toolkit이 준비된 환경에서는 아래를 켜면
+    # STT와 KoELECTRA 추론이 크게 빨라진다.
+    # gpus: all
     ports:
       - "8000:8000"
     volumes:
       - ./backend/artifacts:/app/artifacts:ro
+      # 전사 캐시는 Container 재시작 후에도 남아야 재업로드가 빨라진다.
+      - ./backend/cache:/app/cache
     depends_on:
       database:
         condition: service_healthy

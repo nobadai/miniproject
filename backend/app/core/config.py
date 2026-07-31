@@ -28,6 +28,13 @@ class Settings(BaseSettings):
     openai_api_key: SecretStr | None = None
     anthropic_api_key: SecretStr | None = None
 
+    stt_model_size: str = "large-v3-turbo"
+    stt_device: str = "auto"
+    stt_compute_type: str = "int8"
+    stt_language: str = "ko"
+    stt_telephony_band: bool = True
+    stt_cache_directory: Path = BACKEND_ROOT / "cache" / "transcripts"
+
     cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:3000"])
 
     model_config = SettingsConfigDict(
