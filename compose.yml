@@ -19,10 +19,10 @@ services:
       - ./backend/.env
     environment:
       POSTGRES_HOST: database
-    # GPU가 없는 환경에서도 기동되어야 하므로 기본값에서 뺀다.
-    # NVIDIA GPU와 Container Toolkit이 준비된 환경에서는 아래를 켜면
-    # STT와 KoELECTRA 추론이 크게 빨라진다.
-    # gpus: all
+      STT_DEVICE: cpu
+      STT_COMPUTE_TYPE: int8
+    # 기본 Backend Image는 Local Compose를 위한 CPU 전용 Image다.
+    # GPU 추론은 CUDA용 Dependency와 Compose 구성을 별도로 사용해야 한다.
     ports:
       - "8000:8000"
     volumes:
