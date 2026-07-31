@@ -1,3 +1,5 @@
+# syntax=docker/dockerfile:1
+
 # 목적: Python 3.12 FastAPI 애플리케이션 Image를 생성한다.
 # 주요 역할: uv.lock에 맞춰 Dependency를 설치하고 ASGI Server를 실행한다.
 
@@ -19,7 +21,8 @@ RUN apt-get update \
 
 COPY --from=uv /uv /uvx /bin/
 COPY pyproject.toml uv.lock ./
-RUN uv sync --frozen --no-dev
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-dev
 
 COPY app ./app
 COPY resources ./resources
