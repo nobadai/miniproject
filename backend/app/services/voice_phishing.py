@@ -1,7 +1,8 @@
-"""보이스피싱 텍스트의 규칙 점수와 발화 시퀀스를 분석한다.
+"""보이스피싱 통화의 규칙 점수와 발화 시퀀스를 분석한다.
 
-YAML 규칙을 이용한 설명 가능한 점수와 상대방 발화의 위험 행동 전이를
-계산하며, HTTP나 파일 업로드 방식에는 의존하지 않는다.
+업로드 오디오를 STT로 전사하거나 준비된 녹취를 읽어 turns를 만들고,
+YAML 규칙 기반의 설명 가능한 점수와 상대방 발화의 위험 행동 전이,
+KoELECTRA 점수를 융합해 최종 판정을 계산한다.
 """
 
 from __future__ import annotations
@@ -15,6 +16,7 @@ from typing import Iterable
 
 import yaml
 
+from ..clients.whisper_client import WhisperTranscriptionClient
 from .voice_phishing_model import KoElectraAnalyzer
 
 
@@ -252,9 +254,23 @@ class PreparedTranscriptNotFoundError(FileNotFoundError):
     """현재 단계에서 연결할 준비된 녹취가 없음을 나타낸다."""
 
 
+def analyze_uploaded_audio(audio_bytes: bytes, audio_filename: str) -> dict:
+    """업로드 오디오를 STT로 전사한 뒤 전체 분석한다."""
+    transcript_id = validate_audio_filename(audio_filename)
+    turns = _get_transcription_client().transcribe(audio_bytes, audio_filename)
+    return build_analysis(audio_filename, transcript_id, turns)
+
+
 def analyze_prepared_audio(audio_filename: str) -> dict:
     """업로드 오디오 식별자에 대응하는 준비된 TXT를 전체 분석한다."""
     transcript_id, turns = load_prepared_transcript(audio_filename)
+    return build_analysis(audio_filename, transcript_id, turns)
+
+
+def build_analysis(
+    audio_filename: str, transcript_id: str, turns: list[dict]
+) -> dict:
+    """규칙·KoELECTRA·시퀀스 점수를 융합해 API 응답 구조를 만든다."""
     rule_result = RuleScorer().score_call(turns)
     sequence_result = score_sequence(turns)
     model_result = _get_koelectra_analyzer().score(turns)
@@ -290,8 +306,12 @@ def analyze_prepared_audio(audio_filename: str) -> dict:
     }
 
 
-def load_prepared_transcript(audio_filename: str) -> tuple[str, list[dict]]:
-    """오디오 파일명과 같은 식별자의 사전 변환 TXT를 읽는다."""
+def validate_audio_filename(audio_filename: str) -> str:
+    """업로드 파일명을 검증하고 분석 식별자를 반환한다.
+
+    경로 구분자가 섞인 이름을 그대로 쓰면 의도하지 않은 위치를 가리킬 수
+    있어, 파일명 부분만 남는지 먼저 확인한다.
+    """
     safe_filename = Path(audio_filename).name
     if safe_filename != audio_filename or not safe_filename:
         raise UnsupportedAudioFormatError("유효하지 않은 오디오 파일명입니다.")
@@ -301,8 +321,12 @@ def load_prepared_transcript(audio_filename: str) -> tuple[str, list[dict]]:
         raise UnsupportedAudioFormatError(
             f"지원하지 않는 파일 형식입니다. 지원 형식: {supported}"
         )
+    return Path(safe_filename).stem
 
-    transcript_id = Path(safe_filename).stem
+
+def load_prepared_transcript(audio_filename: str) -> tuple[str, list[dict]]:
+    """오디오 파일명과 같은 식별자의 사전 변환 TXT를 읽는다."""
+    transcript_id = validate_audio_filename(audio_filename)
     transcript_path = TRANSCRIPT_DIRECTORY / f"{transcript_id}.txt"
     if not transcript_path.is_file():
         raise PreparedTranscriptNotFoundError(
@@ -357,6 +381,12 @@ def decide_prediction(
 def _get_koelectra_analyzer() -> KoElectraAnalyzer:
     """요청마다 GPU 모델을 다시 적재하지 않도록 한 인스턴스를 공유한다."""
     return KoElectraAnalyzer()
+
+
+@lru_cache(maxsize=1)
+def _get_transcription_client() -> WhisperTranscriptionClient:
+    """요청마다 STT 모델을 다시 적재하지 않도록 한 인스턴스를 공유한다."""
+    return WhisperTranscriptionClient()
 
 
 def score_sequence(turns: list[dict]) -> SequenceScore:

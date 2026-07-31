@@ -23,7 +23,7 @@ from .voice_phishing_model import (
     LABEL_TO_ID,
     encode_turns,
     forward_chunks,
-    require_cuda,
+    resolve_device,
 )
 
 
@@ -85,7 +85,7 @@ def train_model(
     seed: int = 42,
 ) -> None:
     """전체 기준 데이터로 최종 모델을 학습하고 저장한다."""
-    device = require_cuda()
+    device = resolve_device()
     random.seed(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
@@ -112,7 +112,9 @@ def train_model(
     ]
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
-    scaler = torch.amp.GradScaler("cuda")
+    # Gradient Scaling은 float16 학습에서만 의미가 있다. CPU에서는 꺼야
+    # scaler.step이 옵티마이저를 그대로 통과시켜 정상 학습된다.
+    scaler = torch.amp.GradScaler(device.type, enabled=device.type == "cuda")
     random_generator = random.Random(seed)
     for epoch in range(1, epochs + 1):
         random_generator.shuffle(encoded_calls)

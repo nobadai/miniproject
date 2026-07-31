@@ -1,17 +1,21 @@
-"""KoELECTRA 보이스피싱 모델의 CUDA 추론 기반을 제공한다.
+"""KoELECTRA 보이스피싱 모델의 추론 기반을 제공한다.
 
 통화 텍스트를 겹치는 토큰 청크로 나누고 위험도가 높은 청크를 결합해
-저장된 분류 모델의 통화 단위 점수를 계산한다.
+저장된 분류 모델의 통화 단위 점수를 계산한다. GPU가 있으면 CUDA를 쓰고
+없으면 CPU로 동작한다.
 """
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 
 import torch
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
+
+logger = logging.getLogger(__name__)
 
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_MODEL_PATH = BACKEND_ROOT / "artifacts" / "voice_phishing" / "koelectra"
@@ -28,13 +32,16 @@ class KoElectraScore:
     top_chunks: int
 
 
-def require_cuda() -> torch.device:
-    """CUDA가 없을 때 CPU로 우회하지 않고 명확한 오류를 반환한다."""
-    if not torch.cuda.is_available():
-        raise RuntimeError(
-            "CUDA GPU를 사용할 수 없습니다. CUDA PyTorch 설치를 확인하세요."
-        )
-    return torch.device("cuda")
+def resolve_device() -> torch.device:
+    """추론과 학습에 사용할 장치를 고른다.
+
+    GPU가 없는 환경에서도 기능이 동작해야 하므로 CPU로 내려간다. 다만
+    속도 차이가 크므로 조용히 넘어가지 않고 경고를 남긴다.
+    """
+    if torch.cuda.is_available():
+        return torch.device("cuda")
+    logger.warning("CUDA GPU가 없어 CPU로 실행합니다. 처리 시간이 크게 늘어납니다.")
+    return torch.device("cpu")
 
 
 def format_call_text(turns: list[dict]) -> str:
@@ -92,7 +99,12 @@ def forward_chunks(
     batch_size: int,
     device: torch.device,
 ) -> torch.Tensor:
-    """청크를 작은 CUDA 배치로 실행하고 연결된 logits를 반환한다."""
+    """청크를 작은 배치로 실행하고 연결된 logits를 반환한다.
+
+    float16 자동 혼합정밀도는 CUDA에서만 이득이 있고 CPU에서는 오히려
+    느리거나 지원되지 않는다. 장치에 따라 켜고 끈다.
+    """
+    use_autocast = device.type == "cuda"
     outputs = []
     for start in range(0, len(chunks), batch_size):
         batch = tokenizer.pad(
@@ -101,7 +113,9 @@ def forward_chunks(
         batch = {
             key: value.to(device, non_blocking=True) for key, value in batch.items()
         }
-        with torch.autocast(device_type="cuda", dtype=torch.float16):
+        with torch.autocast(
+            device_type=device.type, dtype=torch.float16, enabled=use_autocast
+        ):
             outputs.append(model(**batch).logits)
     return torch.cat(outputs)
 
@@ -115,7 +129,7 @@ class KoElectraAnalyzer:
             raise FileNotFoundError(
                 f"KoELECTRA 모델 디렉터리를 찾을 수 없습니다: {resolved_path}"
             )
-        self.device = require_cuda()
+        self.device = resolve_device()
         self.tokenizer = AutoTokenizer.from_pretrained(resolved_path)
         self.model = AutoModelForSequenceClassification.from_pretrained(
             resolved_path
