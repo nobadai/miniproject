@@ -12,6 +12,7 @@ dependencies = [
     "google-genai>=2.16.0",
     "psycopg[binary]>=3.3.4",
     "pydantic-settings>=2.14.2",
+    "pyjwt>=2.10.1",
     "python-multipart>=0.0.32",
     "pyyaml>=6.0",
     "selenium>=4.29,<5",
