@@ -4,6 +4,7 @@ Backend 환경변수를 검증하고 애플리케이션 전체에서 공유하�
 """
 
 from pathlib import Path
+from typing import Literal
 
 from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -24,6 +25,10 @@ class Settings(BaseSettings):
     postgres_db: str = Field(min_length=1)
     postgres_user: str = Field(min_length=1)
     postgres_password: SecretStr = Field(min_length=1)
+
+    jwt_secret_key: SecretStr = Field(min_length=32)
+    jwt_algorithm: Literal["HS256"] = "HS256"
+    jwt_access_token_expire_minutes: int = Field(default=30, gt=0)
 
     openai_api_key: SecretStr | None = None
     anthropic_api_key: SecretStr | None = None
