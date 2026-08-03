@@ -4,7 +4,11 @@ from typing import Any
 
 from psycopg.errors import UniqueViolation
 
-from ..core.security import create_access_token
+from ..core.security import (
+    InvalidAccessTokenError,
+    create_access_token,
+    decode_access_token,
+)
 from ..repositories import users as user_repository
 from ..schemas.auth import LoginRequest, SignupRequest
 
@@ -15,6 +19,10 @@ class DuplicateEmailError(ValueError):
 
 class InvalidCredentialsError(ValueError):
     """이메일 또는 비밀번호가 로그인 정보와 일치하지 않을 때 발생한다."""
+
+
+class AuthenticationRequiredError(ValueError):
+    """유효한 토큰에 대응하는 활성 사용자가 없을 때 발생한다."""
 
 
 def signup(request: SignupRequest) -> dict[str, Any]:
@@ -44,3 +52,18 @@ def login(request: LoginRequest) -> tuple[dict[str, Any], str]:
 
     public_user = {key: value for key, value in user.items() if key != "password"}
     return public_user, create_access_token(int(user["id"]))
+
+
+def get_authenticated_user(access_token: str) -> dict[str, Any]:
+    """JWT를 검증하고 토큰에 대응하는 활성 사용자를 반환한다."""
+
+    try:
+        payload = decode_access_token(access_token)
+        user_id = int(payload["sub"])
+    except (InvalidAccessTokenError, KeyError, TypeError, ValueError) as error:
+        raise AuthenticationRequiredError from error
+
+    user = user_repository.find_active_user_by_id(user_id)
+    if user is None:
+        raise AuthenticationRequiredError
+    return user
