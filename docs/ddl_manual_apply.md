@@ -60,6 +60,12 @@ docker compose exec -T database psql -U finance_ai -d finance_ai -c "\d voice_ph
 
 `voice_phishing_uploads`는 7개, `voice_phishing_analyses`는 14개 Column이 나와야 한다. 특히 `voice_phishing_analyses`에 `prediction` Column이 있는지 확인한다.
 
+Column 수만 빠르게 확인하려면 다음을 사용한다.
+
+```bash
+docker compose exec -T database psql -U finance_ai -d finance_ai -c "select table_name, count(*) as columns from information_schema.columns where table_name like 'voice_phishing%' group by table_name order by 1"
+```
+
 ## 6. 주의: PowerShell에서 Pipe로 SQL을 넘기지 않는다
 
 다음 방식은 사용하지 않는다.
@@ -71,20 +77,34 @@ Get-Content database/schemas/0002_create_voice_phishing_tables.sql -Raw | docker
 
 PowerShell Pipe를 통과하면서 SQL 일부가 유실될 수 있다. 실제로 이 방식으로 적용했을 때 `prediction` Column이 빠진 채 Table이 생성되었고, Insert 단계에서 `UndefinedColumn` 오류가 발생했다.
 
-`4. 적용 명령`처럼 Container 안의 경로를 `-f`로 지정하면 파일을 psql이 직접 읽으므로 이 문제가 없다.
+`4. 적용 명령`처럼 파일 경로를 `-f`로 지정하면 psql이 파일을 직접 읽으므로 이 문제가 없다.
 
 ## 7. Docker Compose를 쓰지 않는 경우
 
-Local에 직접 설치한 PostgreSQL을 사용한다면 Repository의 SQL 파일 경로를 그대로 지정한다. 프로젝트 Root에서 실행한다.
+psql Client가 있다면 Container를 거치지 않고 Repository의 SQL 파일을 직접 지정해도 된다. 프로젝트 Root에서 실행한다.
 
 ```bash
 psql -h localhost -p 5432 -U finance_ai -d finance_ai -v ON_ERROR_STOP=1 -f database/schemas/0002_create_voice_phishing_tables.sql
 ```
 
-SQL 파일에 한글 주석이 있으므로 Client Encoding을 UTF-8로 맞춘다.
+`psql`이 PATH에 없으면 전체 경로로 실행한다. pgAdmin이나 PostgreSQL을 설치한 적이 있다면 대부분 아래 위치에 함께 들어 있다.
+
+```powershell
+& "C:\Program Files\PostgreSQL\16\bin\psql.exe" -h localhost -U finance_ai -d finance_ai -v ON_ERROR_STOP=1 -f database\schemas\0002_create_voice_phishing_tables.sql
+```
+
+Client와 Server의 Major Version이 달라도 이 SQL을 적용하는 데는 문제가 없다. psql 16 Client로 PostgreSQL 18 Server에 적용해 동일한 결과를 확인했다.
+
+한글 주석 때문에 Encoding이 걱정된다면 아래를 먼저 설정한다. 검증 환경에서는 설정하지 않아도 정상 적용되었으나, Console Codepage가 다른 환경을 위한 안전장치다.
 
 ```powershell
 $env:PGCLIENTENCODING = "UTF8"
+```
+
+**Local에 직접 설치한 PostgreSQL Service를 함께 쓰고 있다면** 두 Server가 모두 5432를 사용하려 해 충돌한다. 어느 쪽에 접속했는지 헷갈리기도 쉬우므로, Docker Database를 쓰는 동안에는 Local Service를 정지해 둔다.
+
+```powershell
+Get-Service postgresql*
 ```
 
 ## 8. 참고: Volume을 지우고 다시 만드는 방법
