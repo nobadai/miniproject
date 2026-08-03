@@ -48,7 +48,11 @@ services:
       # Schema가 Seed보다 먼저 실행되도록 Container 안 파일명으로 순서를 고정한다.
       # 다시 실행하려면 docker compose down --volumes 로 Volume을 지운다.
       - ./database/schemas/0001_enable_vector.sql:/docker-entrypoint-initdb.d/10_enable_vector.sql:ro
-      - ./database/schemas/0004_create_news_tables.sql:/docker-entrypoint-initdb.d/20_create_news_tables.sql:ro
+      - ./database/schemas/0002_create_voice_phishing_tables.sql:/docker-entrypoint-initdb.d/20_create_voice_phishing_tables.sql:ro
+      - ./database/schemas/0003_create_users.sql:/docker-entrypoint-initdb.d/21_create_users.sql:ro
+      - ./database/schemas/0004_create_news_tables.sql:/docker-entrypoint-initdb.d/22_create_news_tables.sql:ro
+      - ./database/schemas/0005_create_fraud_analysis_tables.sql:/docker-entrypoint-initdb.d/23_create_fraud_analysis_tables.sql:ro
+      - ./database/schemas/0006_add_user_id_to_analysis_tables.sql:/docker-entrypoint-initdb.d/24_add_user_id_to_analysis_tables.sql:ro
       - ./database/seeds/0001_news_articles.sql:/docker-entrypoint-initdb.d/30_news_articles.sql:ro
       - ./database/seeds/0002_news_summaries.sql:/docker-entrypoint-initdb.d/31_news_summaries.sql:ro
       - ./database/seeds/0003_news_sentiments.sql:/docker-entrypoint-initdb.d/32_news_sentiments.sql:ro
