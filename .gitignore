@@ -18,7 +18,6 @@ npm-debug.log*
 **/.mypy_cache/
 **/.ruff_cache/
 **/.uv-cache/
-backend/tests/
 backend/artifacts/
 backend/cache/
 
@@ -27,4 +26,3 @@ backend/cache/
 Thumbs.db
 .idea/
 .vscode/
-uv.lock

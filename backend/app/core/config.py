@@ -27,6 +27,8 @@ class Settings(BaseSettings):
 
     openai_api_key: SecretStr | None = None
     anthropic_api_key: SecretStr | None = None
+    gemini_api_key: SecretStr | None = None
+    gemini_model: str = Field(default="gemini-3.1-flash-lite", min_length=1)
 
     stt_model_size: str = "large-v3-turbo"
     stt_device: str = "auto"

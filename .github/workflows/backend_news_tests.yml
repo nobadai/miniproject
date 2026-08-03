@@ -1,0 +1,57 @@
+name: Backend 뉴스 테스트
+
+on:
+  pull_request:
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend_news_tests.yml"
+  push:
+    branches:
+      - main
+      - dev
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend_news_tests.yml"
+  workflow_dispatch:
+
+jobs:
+  news-tests:
+    name: 뉴스 테스트 (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+
+    defaults:
+      run:
+        working-directory: backend
+
+    env:
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: finance_ai_test
+      POSTGRES_USER: finance_ai_test
+      POSTGRES_PASSWORD: test-password
+      UV_PYTHON: "3.12"
+
+    steps:
+      - name: 저장소 가져오기
+        uses: actions/checkout@v7
+
+      - name: uv 설치
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+
+      - name: Python 의존성 설치
+        run: uv sync --frozen
+
+      - name: Python 컴파일 검사
+        run: uv run --no-sync python -m compileall -q app tests
+
+      - name: 단위 테스트
+        run: uv run --no-sync python -m unittest discover -s tests -v
