@@ -35,6 +35,12 @@ class Settings(BaseSettings):
     gemini_api_key: SecretStr | None = None
     gemini_model: str = Field(default="gemini-3.1-flash-lite", min_length=1)
 
+    # 감성 판정용 로컬 Ollama. num_ctx 와 num_gpu 를 고정해야 재실행 판정이 뒤집히지 않는다.
+    ollama_host: str = Field(default="http://localhost:11434", min_length=1)
+    ollama_model: str = Field(default="gemma4:12b-it-qat", min_length=1)
+    ollama_num_ctx: int = 12288
+    ollama_num_gpu: int = 48
+
     stt_model_size: str = "large-v3-turbo"
     stt_device: str = "auto"
     stt_compute_type: str = "int8"
