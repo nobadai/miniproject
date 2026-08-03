@@ -12,13 +12,16 @@ from . import db
 
 INSERT_SQL = """
 INSERT INTO fraud_analysis_results
-    (verdict, confidence, reasoning, undetermined_reason, tamper_types, raw_response)
+    (user_id, verdict, confidence, reasoning, undetermined_reason,
+     tamper_types, raw_response)
 VALUES
-    (%(verdict)s, %(confidence)s, %(reasoning)s, %(undetermined_reason)s, %(tamper_types)s, %(raw_response)s)
+    (%(user_id)s, %(verdict)s, %(confidence)s, %(reasoning)s,
+     %(undetermined_reason)s, %(tamper_types)s, %(raw_response)s)
 """
 
 
 def insert_fraud_analysis_result(
+    user_id: int,
     verdict: str,
     confidence: float,
     reasoning: str,
@@ -31,6 +34,7 @@ def insert_fraud_analysis_result(
     db.save(
         INSERT_SQL,
         {
+            "user_id": user_id,
             "verdict": verdict,
             "confidence": confidence,
             "reasoning": reasoning,
