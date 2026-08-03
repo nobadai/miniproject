@@ -1,7 +1,7 @@
 """원본 뉴스 Pydantic 스키마의 필드와 검증 규칙을 확인한다."""
 
 import unittest
-from datetime import datetime
+from datetime import date, datetime
 
 from pydantic import ValidationError
 
@@ -16,6 +16,7 @@ def valid_article_data() -> dict[str, object]:
         "body": "코스피와 코스닥의 마감 흐름을 정리한 기사 본문입니다.",
         "source": "파이낸셜뉴스",
         "url": "https://www.fnnews.com/news/202607311710000001",
+        "brief_type": "closing",
         "collected_at": datetime(2026, 8, 3, 12, 0, tzinfo=KST),
     }
 
@@ -32,10 +33,26 @@ class NewsArticleSchemaTests(unittest.TestCase):
             serialized["url"],
             "https://www.fnnews.com/news/202607311710000001",
         )
+        self.assertEqual(serialized["brief_type"], "closing")
+
+    def test_market_date_is_derived_from_published_at_in_korean_time(self) -> None:
+        data = valid_article_data()
+        data["published_at"] = "2026-07-31T16:10:00+00:00"
+
+        article = NewsArticle.model_validate(data)
+
+        self.assertEqual(article.market_date, date(2026, 8, 1))
 
     def test_empty_title_is_rejected(self) -> None:
         data = valid_article_data()
         data["title"] = "   "
+
+        with self.assertRaises(ValidationError):
+            NewsArticle.model_validate(data)
+
+    def test_unknown_brief_type_is_rejected(self) -> None:
+        data = valid_article_data()
+        data["brief_type"] = "evening"
 
         with self.assertRaises(ValidationError):
             NewsArticle.model_validate(data)

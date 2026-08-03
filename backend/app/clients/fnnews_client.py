@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING
 from urllib.parse import urlencode, urlsplit, urlunsplit
 from zoneinfo import ZoneInfo
 
-from ..schemas.news import NewsArticle
+from ..schemas.news import BriefType, NewsArticle
 
 if TYPE_CHECKING:
     from selenium.webdriver.remote.webdriver import WebDriver
@@ -30,6 +30,12 @@ SEARCH_QUERY = "fn 시황"
 FNNEWS_OFFICE_ID = "1014"
 SOURCE_NAME = "파이낸셜뉴스"
 KST = ZoneInfo("Asia/Seoul")
+
+# 파이낸셜뉴스가 시황 기사 제목 끝에 붙이는 고정 표기다.
+BRIEF_TYPE_MARKERS: dict[str, BriefType] = {
+    "[fn오전시황]": "morning",
+    "[fn마감시황]": "closing",
+}
 
 SEARCH_RESULT_LINK_SELECTOR = 'a[href*="fnnews.com/news/"]'
 ARTICLE_TITLE_SELECTOR = "h1.article-view__title"
@@ -107,6 +113,15 @@ def datetime_from_article_url(value: str) -> datetime:
         raise ValueError(f"기사 URL에서 날짜를 찾지 못했습니다: {value}")
     parsed_date = datetime.strptime(match.group(1), "%Y%m%d").date()
     return datetime.combine(parsed_date, datetime.min.time(), tzinfo=KST)
+
+
+def resolve_brief_type(title: str) -> BriefType | None:
+    """제목의 시황 표기로 오전·마감을 구분하고 시황이 아니면 None을 반환한다."""
+
+    for marker, brief_type in BRIEF_TYPE_MARKERS.items():
+        if marker in title:
+            return brief_type
+    return None
 
 
 def normalize_body(text: str) -> str:
@@ -221,8 +236,8 @@ class FnNewsClient:
             )
         return candidates
 
-    def read_article(self, candidate: ArticleCandidate) -> NewsArticle:
-        """파이낸셜뉴스 상세 페이지에서 제목·게시일·본문을 추출한다."""
+    def read_article(self, candidate: ArticleCandidate) -> NewsArticle | None:
+        """상세 페이지에서 기사를 추출하고 시황 기사가 아니면 None을 반환한다."""
 
         from selenium.common.exceptions import TimeoutException, WebDriverException
         from selenium.webdriver.common.by import By
@@ -254,6 +269,17 @@ class FnNewsClient:
 
         try:
             title = title_element.text.strip()
+        except WebDriverException as error:
+            raise FnNewsClientError(
+                f"기사 제목을 읽지 못했습니다: {candidate.url}"
+            ) from error
+
+        # 본문을 읽기 전에 걸러 시황이 아닌 기사의 파싱 비용을 아낀다.
+        brief_type = resolve_brief_type(title)
+        if brief_type is None:
+            return None
+
+        try:
             paragraph_texts = [
                 paragraph.text.strip()
                 for paragraph in body_element.find_elements(By.CSS_SELECTOR, "p")
@@ -266,7 +292,7 @@ class FnNewsClient:
             )
         except WebDriverException as error:
             raise FnNewsClientError(
-                f"기사 제목 또는 본문을 읽지 못했습니다: {candidate.url}"
+                f"기사 본문을 읽지 못했습니다: {candidate.url}"
             ) from error
         body = normalize_body(body_text)
         if not body:
@@ -281,6 +307,7 @@ class FnNewsClient:
             body=body,
             source=SOURCE_NAME,
             url=candidate.url,
+            brief_type=brief_type,
             collected_at=datetime.now(KST).replace(microsecond=0),
         )
 

@@ -41,7 +41,15 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql
-      - ./database/schemas:/docker-entrypoint-initdb.d:ro
+      # 초기화 SQL은 Volume이 처음 생성될 때 파일명 알파벳순으로 한 번만 실행된다.
+      # 하위 Directory는 실행되지 않으므로 파일 단위로 마운트하며,
+      # Schema가 Seed보다 먼저 실행되도록 Container 안 파일명으로 순서를 고정한다.
+      # 다시 실행하려면 docker compose down --volumes 로 Volume을 지운다.
+      - ./database/schemas/0001_enable_vector.sql:/docker-entrypoint-initdb.d/10_enable_vector.sql:ro
+      - ./database/schemas/0003_create_news_tables.sql:/docker-entrypoint-initdb.d/20_create_news_tables.sql:ro
+      - ./database/seeds/0001_news_articles.sql:/docker-entrypoint-initdb.d/30_news_articles.sql:ro
+      - ./database/seeds/0002_news_summaries.sql:/docker-entrypoint-initdb.d/31_news_summaries.sql:ro
+      - ./database/seeds/0003_news_sentiments.sql:/docker-entrypoint-initdb.d/32_news_sentiments.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 5s

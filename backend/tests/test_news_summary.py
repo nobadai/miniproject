@@ -34,6 +34,7 @@ def make_article() -> NewsArticle:
         body="외국인 순매수와 반도체주 강세로 코스피가 상승 마감했다.",
         source="파이낸셜뉴스",
         url="https://www.fnnews.com/news/202607311710000001",
+        brief_type="closing",
         collected_at="2026-08-03T12:00:00+09:00",
     )
 
