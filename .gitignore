@@ -21,10 +21,10 @@ npm-debug.log*
 backend/tests/
 backend/artifacts/
 backend/cache/
+backend/uploads/
 
 # Editor와 운영체제
 .DS_Store
 Thumbs.db
 .idea/
 .vscode/
-uv.lock
