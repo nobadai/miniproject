@@ -28,4 +28,3 @@ backend/uploads/
 Thumbs.db
 .idea/
 .vscode/
-uv.lock
