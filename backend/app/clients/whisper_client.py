@@ -45,6 +45,10 @@ def normalize_audio(source_path: Path) -> Path:
     Whisper는 다양한 컨테이너를 직접 열 수 있지만, 통화 녹음은 코덱과 채널
     구성이 제각각이라 먼저 하나의 형식으로 맞춘다. 전화 대역 통과 필터는
     통화가 아닌 대역의 잡음이 전사 품질을 떨어뜨리는 것을 막는다.
+
+    영상 파일도 같은 경로로 처리한다. -vn 으로 영상 트랙을 명시적으로
+    버려서 오디오 트랙만 남기므로, 이후 단계는 원본이 영상이었는지
+    알 필요가 없다.
     """
     if shutil.which("ffmpeg") is None:
         raise AudioTranscriptionError(
@@ -65,6 +69,7 @@ def normalize_audio(source_path: Path) -> Path:
         low_hz, high_hz = TELEPHONY_BAND_HZ
         command += ["-af", f"highpass=f={low_hz},lowpass=f={high_hz}"]
     command += [
+        "-vn",
         "-ac",
         "1",
         "-ar",

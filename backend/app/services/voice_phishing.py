@@ -2,11 +2,14 @@
 
 업로드 오디오를 STT로 전사하거나 준비된 녹취를 읽어 turns를 만들고,
 YAML 규칙 기반의 설명 가능한 점수와 상대방 발화의 위험 행동 전이,
-KoELECTRA 점수를 융합해 최종 판정을 계산한다.
+KoELECTRA 점수를 융합해 최종 판정을 계산한다. 업로드 원본은 파일로
+보관하고 메타데이터와 분석 결과는 Database에 남긴다.
 """
 
 from __future__ import annotations
 
+import hashlib
+import logging
 import re
 import string
 from dataclasses import dataclass, field
@@ -17,7 +20,13 @@ from typing import Iterable
 import yaml
 
 from ..clients.whisper_client import WhisperTranscriptionClient
+from ..core.config import settings
+from ..models.voice_phishing import VoicePhishingAnalysisRecord
+from ..repositories import voice_phishing as voice_phishing_repository
 from .voice_phishing_model import KoElectraAnalyzer
+
+
+logger = logging.getLogger(__name__)
 
 
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
@@ -27,7 +36,20 @@ DEFAULT_CONFIG_PATH = (
 TRANSCRIPT_DIRECTORY = (
     BACKEND_ROOT / "resources" / "voice_phishing" / "transcripts"
 )
-SUPPORTED_AUDIO_EXTENSIONS = {".mp3", ".wav", ".m4a"}
+# 영상 컨테이너를 함께 받는다. 전사 전에 ffmpeg 가 오디오 트랙만 뽑아
+# 표준 WAV 로 정규화하므로, 분석 계층은 원본 컨테이너를 구분할 필요가 없다.
+SUPPORTED_AUDIO_EXTENSIONS = {
+    ".mp3",
+    ".wav",
+    ".m4a",
+    ".mp4",
+    ".mov",
+    ".avi",
+    ".mkv",
+    ".webm",
+}
+# 업로드 보관 Root 아래에서 기능별로 나누는 하위 경로이다.
+UPLOAD_SUBDIRECTORY = "voice-phishing"
 RULE_SCORE_WEIGHT = 0.33
 KOELECTRA_SCORE_WEIGHT = 0.34
 SEQUENCE_SCORE_WEIGHT = 0.33
@@ -37,10 +59,15 @@ PUNCTUATION_TRANSLATION = str.maketrans(
 
 ACT_PATTERNS = {
     "신원제시": r"수사관|담당검사|금융감독원|금감원|검찰청|중앙지검|경찰청|사이버수사대",
-    "문제제기": r"명의.?도용|대포.?통장|사건.{0,8}(?:연루|접수|조사)|범죄|불법.?자금|계좌.{0,10}(?:개설|동결|정지)|피해자.?입증|구속|영장|고소|고발",
-    "정보요구": r"(?:(?:생년월일|주민번호|계좌번호|비밀번호|인증번호|잔액|재산|자산|연소득).{0,15}(?:말씀|알려|불러|얼마|확인)|(?:말씀|알려|불러).{0,15}(?:생년월일|주민번호|계좌번호|비밀번호|인증번호|잔액|재산|자산|연소득)|은행.{0,10}(?:어디|몇))",
+    # 등기·공문 발송을 빌미로 접근하는 수법은 "연루" 같은 직접 표현을 쓰지
+    # 않고 수사 절차 어휘만 반복한다. 정상 상담에도 나오는 "등기"는 단독으로
+    # 넣지 않고 반송과 붙은 형태만 본다.
+    "문제제기": r"명의.?도용|대포.?통장|사건.{0,8}(?:연루|접수|조사)|범죄|불법.?자금|계좌.{0,10}(?:개설|동결|정지)|피해자.?입증|구속|영장|고소|고발|참고인.{0,6}조사|출석.{0,3}요구|공문|사건.?번호|등기.{0,10}반송",
+    "정보요구": r"(?:(?:생년월일|주민번호|계좌번호|비밀번호|인증번호|잔액|재산|자산|연소득).{0,15}(?:말씀|알려|불러|얼마|확인)|(?:말씀|알려|불러).{0,15}(?:생년월일|주민번호|계좌번호|비밀번호|인증번호|잔액|재산|자산|연소득)|은행.{0,10}(?:어디|몇)|사건.?번호.{0,15}(?:말씀|알려|불러))",
     "격리요구": r"(?:(?:가족|직원|주변.{0,3}사람|누구에게도|아무에게도|제.?3자|제.?삼자|타인).{0,18}(?:말하지|알리지|발설)|(?:말씀|발설).{0,8}(?:안.?됩니다|마세요)|(?:수사|조사).{0,6}(?:기밀|비밀)|(?:통화|전화).{0,10}(?:끊지|유지)|혼자.{0,8}(?:계시|있)|조용한.{0,5}(?:곳|장소)|자택으로.{0,8}(?:가|이동))",
-    "행위지시": r"(?:(?:이체|송금|입금).{0,12}(?:해.?주|하셔|하세요|해야|하십시오|하십쇼|해라)|대출.{0,12}(?:받으|받아|진행하|신청하)|(?:앱|어플|프로그램).{0,10}(?:설치하|깔아|다운로드하)|링크.{0,10}(?:접속하|누르|클릭)|(?:은행|지점|창구).{0,12}(?:가시|가셔|방문하|이동하)|설정.{0,8}(?:들어가|여시)|(?:데이터|와이파이).{0,8}차단.{0,8}(?:해|하셔|하세요)|(?:전화|번호).{0,10}(?:걸어|누르|전화하)|(?:otp|인증번호|비밀번호).{0,10}(?:알려|불러))",
+    # 가짜 사이트로 유도하는 수법은 링크를 보내지 않고 주소를 불러준 뒤
+    # 직접 입력하게 한다. 링크를 누르라는 표현만 보면 이 단계를 놓친다.
+    "행위지시": r"(?:(?:이체|송금|입금).{0,12}(?:해.?주|하셔|하세요|해야|하십시오|하십쇼|해라)|대출.{0,12}(?:받으|받아|진행하|신청하)|(?:앱|어플|프로그램).{0,10}(?:설치하|깔아|다운로드하)|링크.{0,10}(?:접속하|누르|클릭)|(?:은행|지점|창구).{0,12}(?:가시|가셔|방문하|이동하)|설정.{0,8}(?:들어가|여시)|(?:데이터|와이파이).{0,8}차단.{0,8}(?:해|하셔|하세요)|(?:전화|번호).{0,10}(?:걸어|누르|전화하)|(?:otp|인증번호|비밀번호).{0,10}(?:알려|불러)|주소.?창.{0,15}(?:입력|지우|치고)|(?:사이트|주소|홈페이지).{0,12}(?:입력하|접속하|들어가)|실명.?인증)",
     "종료": r"(?:상담|통화|조사).{0,10}(?:종료|마치)|수고하셨습니다|좋은 하루|안녕히|끊겠습니다",
 }
 ACT_REGEX = {
@@ -50,6 +77,7 @@ ACT_REGEX = {
 SAFE_CONTEXT = re.compile(
     r"(?:(?:비밀번호|보안카드|cvc|otp|인증번호).{0,25}(?:요구|여쭤|알려|보관).{0,10}(?:않|안|없)|"
     r"(?:링크|앱|어플).{0,25}(?:누르|설치|접속).{0,10}(?:마세요|않|안)|"
+    r"(?:사이트|주소|홈페이지).{0,25}(?:입력|접속|안내).{0,10}(?:마세요|않|안)|"
     r"(?:악성|보이스피싱|사기).{0,20}(?:주의|조심|예방|설치|링크)|"
     r"(?:비밀번호|보안카드|cvc|otp|인증번호).{0,20}(?:타인|누구).{0,15}(?:알려|공유)|"
     r"(?:대표번호|카드.?뒷면).{0,20}(?:다시|직접).{0,10}(?:확인|연락))",
@@ -255,10 +283,87 @@ class PreparedTranscriptNotFoundError(FileNotFoundError):
 
 
 def analyze_uploaded_audio(audio_bytes: bytes, audio_filename: str) -> dict:
-    """업로드 오디오를 STT로 전사한 뒤 전체 분석한다."""
+    """업로드 파일을 보관하고 전사·분석한 뒤 결과를 Database에 남긴다.
+
+    같은 내용을 다시 올리면 저장된 직전 분석을 그대로 돌려준다. 전사와 모델
+    추론은 통화 길이에 비례해 오래 걸리는 작업인데, 파일 내용이 같으면 결과도
+    같기 때문이다.
+    """
     transcript_id = validate_audio_filename(audio_filename)
+    content_hash = hashlib.sha256(audio_bytes).hexdigest()
+    upload = voice_phishing_repository.find_upload_by_content_hash(content_hash)
+
+    if upload is None:
+        # 파일을 먼저 쓰고 Row 를 남긴다. 순서를 뒤집으면 저장에 실패했을 때
+        # 존재하지 않는 경로를 가리키는 Row 가 생긴다.
+        stored_path = store_media_file(audio_bytes, audio_filename, content_hash)
+        upload_id = voice_phishing_repository.save_upload(
+            original_filename=Path(audio_filename).name,
+            stored_path=stored_path,
+            content_hash=content_hash,
+            media_extension=Path(audio_filename).suffix.lower(),
+            byte_size=len(audio_bytes),
+        )
+    else:
+        upload_id = upload.id
+        stored_analysis = voice_phishing_repository.find_latest_analysis(upload_id)
+        if stored_analysis is not None:
+            logger.info("저장된 분석 결과 사용: upload_id=%d", upload_id)
+            return build_stored_analysis(
+                stored_analysis, audio_filename, transcript_id
+            )
+
     turns = _get_transcription_client().transcribe(audio_bytes, audio_filename)
-    return build_analysis(audio_filename, transcript_id, turns)
+    analysis = build_analysis(audio_filename, transcript_id, turns)
+    voice_phishing_repository.save_analysis(upload_id, analysis)
+    return analysis
+
+
+def store_media_file(
+    audio_bytes: bytes, audio_filename: str, content_hash: str
+) -> str:
+    """업로드 원본을 보관하고 저장 Root 기준 상대 경로를 반환한다.
+
+    파일명이 아니라 내용 해시를 이름으로 쓴다. 같은 통화를 다른 이름으로 올려도
+    사본이 늘지 않고, 이름만 같고 내용이 다른 파일이 서로를 덮어쓰지 않는다.
+    Database 에는 상대 경로만 남겨 보관 위치를 옮겨도 기존 Row 를 고칠 필요가
+    없게 한다.
+    """
+    relative_path = (
+        Path(UPLOAD_SUBDIRECTORY)
+        / f"{content_hash}{Path(audio_filename).suffix.lower()}"
+    )
+    target_path = settings.upload_directory / relative_path
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+    target_path.write_bytes(audio_bytes)
+    return relative_path.as_posix()
+
+
+def build_stored_analysis(
+    stored_analysis: VoicePhishingAnalysisRecord,
+    audio_filename: str,
+    transcript_id: str,
+) -> dict:
+    """저장된 분석 이력을 API 응답 구조로 되돌린다.
+
+    파일명과 식별자는 저장된 값이 아니라 이번 요청 값을 쓴다. 점수는 파일
+    내용에서 나오므로 재사용해도 같지만, 화면에는 사용자가 방금 올린 이름이
+    보여야 한다.
+    """
+    return {
+        "audio_filename": Path(audio_filename).name,
+        "transcript_id": transcript_id,
+        "prediction": stored_analysis.prediction,
+        "fusion_raw_score": stored_analysis.fusion_raw_score,
+        "fusion_score": stored_analysis.fusion_score,
+        "rule_score": stored_analysis.rule_score,
+        "rule_categories": stored_analysis.rule_categories,
+        "sequence_score": stored_analysis.sequence_score,
+        "transitions": stored_analysis.transitions,
+        "koelectra_score": stored_analysis.koelectra_score,
+        "decision_reason": stored_analysis.decision_reason,
+        "turns": stored_analysis.turns,
+    }
 
 
 def analyze_prepared_audio(audio_filename: str) -> dict:
