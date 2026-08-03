@@ -6,6 +6,7 @@
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
 
+from ..core.dependencies import CurrentUser
 from ..schemas.api_response import ApiResponse
 from ..schemas.fraud_analysis import FraudAnalysisResult
 from ..services import fraud_analysis as fraud_analysis_service
@@ -18,6 +19,7 @@ ALLOWED_MEDIA_TYPES = {"image/png", "image/jpeg", "image/webp", "image/gif"}
 
 @router.post("", response_model=ApiResponse[FraudAnalysisResult], status_code=201)
 async def analyze_fraud_screenshot(
+    current_user: CurrentUser,
     file: UploadFile = File(...),
 ) -> ApiResponse[FraudAnalysisResult]:
     """은행/카드/간편결제 앱 화면 캡처를 업로드받아 사기 여부를 분석한다."""
@@ -27,6 +29,10 @@ async def analyze_fraud_screenshot(
 
     image_bytes = await file.read()
 
-    result = fraud_analysis_service.analyze_fraud_image(image_bytes, file.content_type)
+    result = fraud_analysis_service.analyze_fraud_image(
+        image_bytes,
+        file.content_type,
+        user_id=int(current_user["id"]),
+    )
 
     return ApiResponse(success=True, data=result, message="요청이 정상적으로 처리되었습니다.")

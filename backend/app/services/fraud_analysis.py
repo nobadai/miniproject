@@ -14,7 +14,12 @@ from ..schemas.fraud_analysis import FraudAnalysisResult
 logger = logging.getLogger(__name__)
 
 
-def analyze_fraud_image(image_bytes: bytes, media_type: str) -> FraudAnalysisResult:
+def analyze_fraud_image(
+    image_bytes: bytes,
+    media_type: str,
+    *,
+    user_id: int,
+) -> FraudAnalysisResult:
     """이미지를 분석해 사기 탐지 결과를 반환한다. 분석 실패 시 예외를 그대로 전파한다.
 
     결과 DB 저장은 부가 기능이므로 저장이 실패해도 판정 결과 응답 자체는 그대로 반환한다.
@@ -29,6 +34,7 @@ def analyze_fraud_image(image_bytes: bytes, media_type: str) -> FraudAnalysisRes
 
     try:
         fraud_analysis_repository.insert_fraud_analysis_result(
+            user_id=user_id,
             verdict=result.verdict,
             confidence=result.confidence,
             reasoning=result.reasoning,

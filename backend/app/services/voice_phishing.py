@@ -282,12 +282,17 @@ class PreparedTranscriptNotFoundError(FileNotFoundError):
     """현재 단계에서 연결할 준비된 녹취가 없음을 나타낸다."""
 
 
-def analyze_uploaded_audio(audio_bytes: bytes, audio_filename: str) -> dict:
+def analyze_uploaded_audio(
+    audio_bytes: bytes,
+    audio_filename: str,
+    *,
+    user_id: int,
+) -> dict:
     """업로드 파일을 보관하고 전사·분석한 뒤 결과를 Database에 남긴다.
 
-    같은 내용을 다시 올리면 저장된 직전 분석을 그대로 돌려준다. 전사와 모델
-    추론은 통화 길이에 비례해 오래 걸리는 작업인데, 파일 내용이 같으면 결과도
-    같기 때문이다.
+    같은 사용자가 같은 내용을 다시 올리면 저장된 직전 분석을 그대로 돌려준다.
+    전사와 모델 추론은 통화 길이에 비례해 오래 걸리는 작업인데, 파일 내용이
+    같으면 결과도 같기 때문이다.
     """
     transcript_id = validate_audio_filename(audio_filename)
     content_hash = hashlib.sha256(audio_bytes).hexdigest()
@@ -306,16 +311,27 @@ def analyze_uploaded_audio(audio_bytes: bytes, audio_filename: str) -> dict:
         )
     else:
         upload_id = upload.id
-        stored_analysis = voice_phishing_repository.find_latest_analysis(upload_id)
+        stored_analysis = voice_phishing_repository.find_latest_analysis(
+            upload_id,
+            user_id=user_id,
+        )
         if stored_analysis is not None:
-            logger.info("저장된 분석 결과 사용: upload_id=%d", upload_id)
+            logger.info(
+                "저장된 분석 결과 사용: user_id=%d, upload_id=%d",
+                user_id,
+                upload_id,
+            )
             return build_stored_analysis(
                 stored_analysis, audio_filename, transcript_id
             )
 
     turns = _get_transcription_client().transcribe(audio_bytes, audio_filename)
     analysis = build_analysis(audio_filename, transcript_id, turns)
-    voice_phishing_repository.save_analysis(upload_id, analysis)
+    voice_phishing_repository.save_analysis(
+        upload_id,
+        analysis,
+        user_id=user_id,
+    )
     return analysis
 
 
