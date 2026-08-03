@@ -2,11 +2,14 @@
 
 업로드 오디오를 STT로 전사하거나 준비된 녹취를 읽어 turns를 만들고,
 YAML 규칙 기반의 설명 가능한 점수와 상대방 발화의 위험 행동 전이,
-KoELECTRA 점수를 융합해 최종 판정을 계산한다.
+KoELECTRA 점수를 융합해 최종 판정을 계산한다. 업로드 원본은 파일로
+보관하고 메타데이터와 분석 결과는 Database에 남긴다.
 """
 
 from __future__ import annotations
 
+import hashlib
+import logging
 import re
 import string
 from dataclasses import dataclass, field
@@ -17,7 +20,13 @@ from typing import Iterable
 import yaml
 
 from ..clients.whisper_client import WhisperTranscriptionClient
+from ..core.config import settings
+from ..models.voice_phishing import VoicePhishingAnalysisRecord
+from ..repositories import voice_phishing as voice_phishing_repository
 from .voice_phishing_model import KoElectraAnalyzer
+
+
+logger = logging.getLogger(__name__)
 
 
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
@@ -27,7 +36,20 @@ DEFAULT_CONFIG_PATH = (
 TRANSCRIPT_DIRECTORY = (
     BACKEND_ROOT / "resources" / "voice_phishing" / "transcripts"
 )
-SUPPORTED_AUDIO_EXTENSIONS = {".mp3", ".wav", ".m4a"}
+# 영상 컨테이너를 함께 받는다. 전사 전에 ffmpeg 가 오디오 트랙만 뽑아
+# 표준 WAV 로 정규화하므로, 분석 계층은 원본 컨테이너를 구분할 필요가 없다.
+SUPPORTED_AUDIO_EXTENSIONS = {
+    ".mp3",
+    ".wav",
+    ".m4a",
+    ".mp4",
+    ".mov",
+    ".avi",
+    ".mkv",
+    ".webm",
+}
+# 업로드 보관 Root 아래에서 기능별로 나누는 하위 경로이다.
+UPLOAD_SUBDIRECTORY = "voice-phishing"
 RULE_SCORE_WEIGHT = 0.33
 KOELECTRA_SCORE_WEIGHT = 0.34
 SEQUENCE_SCORE_WEIGHT = 0.33
@@ -255,10 +277,87 @@ class PreparedTranscriptNotFoundError(FileNotFoundError):
 
 
 def analyze_uploaded_audio(audio_bytes: bytes, audio_filename: str) -> dict:
-    """업로드 오디오를 STT로 전사한 뒤 전체 분석한다."""
+    """업로드 파일을 보관하고 전사·분석한 뒤 결과를 Database에 남긴다.
+
+    같은 내용을 다시 올리면 저장된 직전 분석을 그대로 돌려준다. 전사와 모델
+    추론은 통화 길이에 비례해 오래 걸리는 작업인데, 파일 내용이 같으면 결과도
+    같기 때문이다.
+    """
     transcript_id = validate_audio_filename(audio_filename)
+    content_hash = hashlib.sha256(audio_bytes).hexdigest()
+    upload = voice_phishing_repository.find_upload_by_content_hash(content_hash)
+
+    if upload is None:
+        # 파일을 먼저 쓰고 Row 를 남긴다. 순서를 뒤집으면 저장에 실패했을 때
+        # 존재하지 않는 경로를 가리키는 Row 가 생긴다.
+        stored_path = store_media_file(audio_bytes, audio_filename, content_hash)
+        upload_id = voice_phishing_repository.save_upload(
+            original_filename=Path(audio_filename).name,
+            stored_path=stored_path,
+            content_hash=content_hash,
+            media_extension=Path(audio_filename).suffix.lower(),
+            byte_size=len(audio_bytes),
+        )
+    else:
+        upload_id = upload.id
+        stored_analysis = voice_phishing_repository.find_latest_analysis(upload_id)
+        if stored_analysis is not None:
+            logger.info("저장된 분석 결과 사용: upload_id=%d", upload_id)
+            return build_stored_analysis(
+                stored_analysis, audio_filename, transcript_id
+            )
+
     turns = _get_transcription_client().transcribe(audio_bytes, audio_filename)
-    return build_analysis(audio_filename, transcript_id, turns)
+    analysis = build_analysis(audio_filename, transcript_id, turns)
+    voice_phishing_repository.save_analysis(upload_id, analysis)
+    return analysis
+
+
+def store_media_file(
+    audio_bytes: bytes, audio_filename: str, content_hash: str
+) -> str:
+    """업로드 원본을 보관하고 저장 Root 기준 상대 경로를 반환한다.
+
+    파일명이 아니라 내용 해시를 이름으로 쓴다. 같은 통화를 다른 이름으로 올려도
+    사본이 늘지 않고, 이름만 같고 내용이 다른 파일이 서로를 덮어쓰지 않는다.
+    Database 에는 상대 경로만 남겨 보관 위치를 옮겨도 기존 Row 를 고칠 필요가
+    없게 한다.
+    """
+    relative_path = (
+        Path(UPLOAD_SUBDIRECTORY)
+        / f"{content_hash}{Path(audio_filename).suffix.lower()}"
+    )
+    target_path = settings.upload_directory / relative_path
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+    target_path.write_bytes(audio_bytes)
+    return relative_path.as_posix()
+
+
+def build_stored_analysis(
+    stored_analysis: VoicePhishingAnalysisRecord,
+    audio_filename: str,
+    transcript_id: str,
+) -> dict:
+    """저장된 분석 이력을 API 응답 구조로 되돌린다.
+
+    파일명과 식별자는 저장된 값이 아니라 이번 요청 값을 쓴다. 점수는 파일
+    내용에서 나오므로 재사용해도 같지만, 화면에는 사용자가 방금 올린 이름이
+    보여야 한다.
+    """
+    return {
+        "audio_filename": Path(audio_filename).name,
+        "transcript_id": transcript_id,
+        "prediction": stored_analysis.prediction,
+        "fusion_raw_score": stored_analysis.fusion_raw_score,
+        "fusion_score": stored_analysis.fusion_score,
+        "rule_score": stored_analysis.rule_score,
+        "rule_categories": stored_analysis.rule_categories,
+        "sequence_score": stored_analysis.sequence_score,
+        "transitions": stored_analysis.transitions,
+        "koelectra_score": stored_analysis.koelectra_score,
+        "decision_reason": stored_analysis.decision_reason,
+        "turns": stored_analysis.turns,
+    }
 
 
 def analyze_prepared_audio(audio_filename: str) -> dict:
