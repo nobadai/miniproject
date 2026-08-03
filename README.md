@@ -59,7 +59,7 @@ npm run dev
 ## 금융 뉴스 수집
 
 파이낸셜뉴스의 `[fn오전시황]`, `[fn마감시황]` 기사를 Selenium으로 수집해
-PostgreSQL `news_articles`에 적재합니다. `database/schemas/0003_create_news_tables.sql`을
+PostgreSQL `news_articles`에 적재합니다. `database/schemas/0004_create_news_tables.sql`을
 먼저 적용해야 합니다.
 
 ```text
