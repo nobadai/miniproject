@@ -31,19 +31,20 @@ SELECT_UPLOAD_BY_HASH_SQL = """
 """
 INSERT_ANALYSIS_SQL = """
     INSERT INTO voice_phishing_analyses (
-        upload_id, transcript_id, prediction, fusion_score, fusion_raw_score,
-        rule_score, sequence_score, koelectra_score, rule_categories,
-        transitions, decision_reason, turns
+        user_id, upload_id, transcript_id, prediction, fusion_score,
+        fusion_raw_score, rule_score, sequence_score, koelectra_score,
+        rule_categories, transitions, decision_reason, turns
     )
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     RETURNING id
 """
 SELECT_LATEST_ANALYSIS_SQL = """
-    SELECT id, upload_id, transcript_id, prediction, fusion_score,
+    SELECT id, user_id, upload_id, transcript_id, prediction, fusion_score,
            fusion_raw_score, rule_score, sequence_score, koelectra_score,
            rule_categories, transitions, decision_reason, turns, created_at
     FROM voice_phishing_analyses
     WHERE upload_id = %s
+      AND user_id = %s
     ORDER BY created_at DESC, id DESC
     LIMIT 1
 """
@@ -87,11 +88,17 @@ def find_upload_by_content_hash(content_hash: str) -> VoicePhishingUpload | None
     )
 
 
-def save_analysis(upload_id: int, analysis: dict[str, Any]) -> int:
-    """분석 결과 한 건을 저장하고 식별자를 반환한다."""
+def save_analysis(
+    upload_id: int,
+    analysis: dict[str, Any],
+    *,
+    user_id: int,
+) -> int:
+    """사용자의 분석 결과 한 건을 저장하고 식별자를 반환한다."""
     row = db.find_one(
         INSERT_ANALYSIS_SQL,
         (
+            user_id,
             upload_id,
             analysis["transcript_id"],
             analysis["prediction"],
@@ -111,13 +118,18 @@ def save_analysis(upload_id: int, analysis: dict[str, Any]) -> int:
     return int(row["id"])
 
 
-def find_latest_analysis(upload_id: int) -> VoicePhishingAnalysisRecord | None:
-    """해당 업로드의 가장 최근 분석 결과를 조회한다."""
-    row = db.find_one(SELECT_LATEST_ANALYSIS_SQL, (upload_id,))
+def find_latest_analysis(
+    upload_id: int,
+    *,
+    user_id: int,
+) -> VoicePhishingAnalysisRecord | None:
+    """해당 사용자와 업로드의 가장 최근 분석 결과를 조회한다."""
+    row = db.find_one(SELECT_LATEST_ANALYSIS_SQL, (upload_id, user_id))
     if row is None:
         return None
     return VoicePhishingAnalysisRecord(
         id=int(row["id"]),
+        user_id=int(row["user_id"]),
         upload_id=int(row["upload_id"]),
         transcript_id=row["transcript_id"],
         prediction=row["prediction"],

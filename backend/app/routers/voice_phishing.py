@@ -7,6 +7,7 @@ multipart 오디오 파일을 받아 STT 전사 기반 분석 서비스를 호�
 from fastapi import APIRouter, File, Response, UploadFile, status
 
 from ..clients.whisper_client import EmptyTranscriptionError
+from ..core.dependencies import CurrentUser
 from ..schemas.api_response import ApiResponse
 from ..schemas.voice_phishing import VoicePhishingAnalysis
 from ..services.voice_phishing import (
@@ -29,6 +30,7 @@ MAX_UPLOAD_BYTES = MAX_UPLOAD_MEGABYTES * 1024 * 1024
     status_code=status.HTTP_201_CREATED,
 )
 def analyze_audio(
+    current_user: CurrentUser,
     response: Response,
     file: UploadFile = File(
         description="분석할 오디오(MP3, WAV, M4A) 또는 영상(MP4, MOV, AVI, MKV, WEBM)"
@@ -58,7 +60,11 @@ def analyze_audio(
 
     try:
         analysis = VoicePhishingAnalysis(
-            **analyze_uploaded_audio(audio_bytes, file.filename)
+            **analyze_uploaded_audio(
+                audio_bytes,
+                file.filename,
+                user_id=int(current_user["id"]),
+            )
         )
     except (UnsupportedAudioFormatError, EmptyTranscriptionError) as error:
         response.status_code = status.HTTP_400_BAD_REQUEST

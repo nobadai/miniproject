@@ -25,6 +25,7 @@ class VoicePhishingAnalysisRecord:
     """voice_phishing_analyses Table의 Row이다."""
 
     id: int
+    user_id: int
     upload_id: int
     transcript_id: str
     prediction: str
