@@ -1,63 +1,35 @@
 /* 목적: Tailwind CSS를 불러오고 애플리케이션 전역 기본 스타일을 정의한다.
- * 주요 역할: 중장년 사용자를 위한 색상, 글자 크기, 초점 표시 기준값을 한곳에서 관리한다.
+ * 주요 역할: 확정된 시안(네이비 계열 은행 앱 톤)의 색상 토큰을 Tailwind v4 테마로 등록하고,
+ *           모든 경로가 공유하는 최소한의 화면 기반을 제공한다.
  */
 
 @import "tailwindcss";
 
 @theme {
-  --color-brand: #14449e;
-  --color-brand-dark: #0e3378;
-  --color-brand-soft: #e8eefb;
-
-  /* 검사 결과는 신호등 색으로만 구분하지 않고 아이콘, 문구와 함께 사용한다. */
-  --color-safe: #0f7a3d;
-  --color-safe-soft: #e4f4ea;
-  --color-caution: #a35a00;
-  --color-caution-soft: #fdf0d5;
-  --color-danger: #c22121;
-  --color-danger-soft: #fdeaea;
-
-  --color-ink: #1a1d21;
-  --color-ink-soft: #4d5560;
-  --color-line: #d3d9e2;
+  --color-navy: #0f2440;
+  --color-navy-2: #16345c;
+  --color-navy-3: #24466f;
+  --color-navy-dark: #0a1a30;
+  --color-ink: #1c2431;
+  --color-ink-sub: #5c6672;
+  --color-ink-body: #333c48;
+  --color-line: #e2e5ea;
+  --color-line-soft: #edeff2;
   --color-surface: #ffffff;
-  --color-canvas: #eef1f6;
-
-  /* 기본 본문을 18px로 올린 시니어 기준 타입 스케일이다. */
-  --text-sm: 1rem;
-  --text-sm--line-height: 1.6;
-  --text-base: 1.125rem;
-  --text-base--line-height: 1.7;
-  --text-lg: 1.25rem;
-  --text-lg--line-height: 1.6;
-  --text-xl: 1.5rem;
-  --text-xl--line-height: 1.5;
-  --text-2xl: 1.75rem;
-  --text-2xl--line-height: 1.4;
-  --text-3xl: 2.125rem;
-  --text-3xl--line-height: 1.35;
-}
-
-/* 화면에서 직접 글자 크기를 키울 수 있도록 rem 기준값 자체를 바꾼다.
- * 개별 Component마다 크기를 따로 관리하지 않고 한 번에 확대하기 위함이다. */
-html {
-  font-size: 16px;
-}
-
-html.large-text {
-  font-size: 18.5px;
+  --color-bg: #f4f5f7;
+  --color-caution: #9a6b12;
+  --color-caution-bg: #fbf3e2;
+  --color-caution-border: #f0e0bd;
+  --color-alert: #a3312c;
+  --color-alert-bg: #f8ecea;
+  --color-alert-border: #eaccc8;
+  --color-safe: #266b52;
+  --color-safe-bg: #eaf3ee;
+  --color-safe-border: #c9e0d2;
 }
 
 body {
-  font-family: "Malgun Gothic", "맑은 고딕", "Apple SD Gothic Neo", system-ui,
-    sans-serif;
   margin: 0;
-  /* 한글이 단어 중간에서 잘리면 읽는 속도가 크게 떨어진다. */
-  word-break: keep-all;
-}
-
-/* 저시력 사용자와 키보드 사용자를 위해 초점 표시를 항상 굵게 유지한다. */
-:focus-visible {
-  outline: 3px solid var(--color-brand);
-  outline-offset: 2px;
+  background: var(--color-bg);
+  color: var(--color-ink);
 }

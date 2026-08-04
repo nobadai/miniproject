@@ -1,28 +1,11 @@
-// 목적: 보유 금융상품과 관련된 맞춤 뉴스 화면을 정의한다.
-// 주요 역할: 보유 상품과 기사 데이터를 불러와 요약과 목록 Component에 전달한다.
+// 목적: 금융 뉴스 감성 분석 목록 페이지의 진입점을 정의한다.
+// 주요 역할: services/news.ts에서 뉴스 목록을 가져와 필터 UI(Client Component)에 전달한다.
+//           Backend 호출이 실패해도 페이지 전체가 깨지지 않도록 빈 목록으로 대체한다.
 
-import PageHeading from "../../components/commons/page_heading";
-import HoldingSummary from "../../components/news/holding_summary";
-import NewsFeed from "../../components/news/news_feed";
-import {
-  fetchInvestmentHoldings,
-  fetchNewsArticles,
-} from "../../services/news_article";
+import { getNewsArticles } from "../../services/news";
+import NewsListView from "./NewsListView";
 
 export default async function NewsPage() {
-  const holdings = await fetchInvestmentHoldings();
-  const articles = await fetchNewsArticles();
-
-  return (
-    <div className="flex flex-col gap-6">
-      <PageHeading
-        title="내 맞춤 뉴스"
-        description="가입하신 금융상품과 관련된 소식만 모아서 보여드려요."
-      />
-
-      <HoldingSummary holdings={holdings} />
-
-      <NewsFeed holdings={holdings} articles={articles} />
-    </div>
-  );
+  const articles = await getNewsArticles().catch(() => []);
+  return <NewsListView articles={articles} />;
 }

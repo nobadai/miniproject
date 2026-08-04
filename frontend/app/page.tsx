@@ -1,78 +1,117 @@
-// 목적: Frontend 루트 경로인 홈 화면을 정의한다.
-// 주요 역할: 세 가지 주요 기능으로 이동하는 큰 카드와 기본 안전 수칙을 제공한다.
+// 목적: Frontend 홈 화면을 정의한다.
+// 주요 역할: 서비스 소개(Hero), 금융 뉴스 배너, 기능 카드, 이용 통계를 보여준다.
 
-import ActionCard from "../components/commons/action_card";
+import Link from "next/link";
+import NewsBanner from "../components/news/NewsBanner";
 
-const SAFETY_TIPS = [
-  "전화로 계좌번호나 비밀번호를 묻는 곳은 모두 사기입니다.",
-  "검찰, 경찰, 금융감독원은 절대 돈을 보내라고 하지 않습니다.",
-  "문자로 온 링크는 누르지 말고 먼저 확인받으세요.",
+const FEATURE_CARDS = [
+  {
+    href: "/fraud-check",
+    title: "사기화면 판별",
+    description:
+      "은행·카드 앱 캡처 화면을 올리면 정상 · 사기의심 · 판단불가 3단계로 분석해요.",
+    icon: (
+      <path d="M3 15l5-5 4 4 5-6 4 5" />
+    ),
+  },
+  {
+    href: "/fraud-check?tab=voice",
+    title: "보이스피싱 판별",
+    badge: "구현 예정",
+    description:
+      "통화 녹음 파일을 올리면 대화 내용을 분석해 보이스피싱 의심도와 대응 방법을 안내해요.",
+    icon: (
+      <>
+        <path d="M6 11a6 6 0 0 0 12 0" />
+        <path d="M12 17v4" />
+        <path d="M9 21h6" />
+      </>
+    ),
+  },
+  {
+    href: "/news",
+    title: "금융 뉴스 감성 분석",
+    description: "최신 금융 뉴스를 긍정·부정·중립으로 분류해 흐름을 한눈에 볼 수 있어요.",
+    icon: <path d="M8 10h8M8 14h5" />,
+  },
+];
+
+const STATS = [
+  { num: "1,204건", label: "누적 사기화면 판별" },
+  { num: "386건", label: "누적 보이스피싱 판별" },
+  { num: "97.2%", label: "서비스 가동률" },
 ];
 
 export default function HomePage() {
   return (
-    <div className="flex flex-col gap-6">
-      <section>
-        <h1 className="text-2xl font-bold text-ink">
-          안녕하세요, 오늘도 안전하게 지켜드릴게요
-        </h1>
-        <p className="mt-2 text-base text-ink-soft">
-          의심되는 통화나 문자가 있으면 아래에서 바로 확인해 보세요.
-        </p>
-      </section>
-
-      <section className="flex flex-col gap-4">
-        <ActionCard
-          href="/voice-phishing"
-          icon="📞"
-          title="통화 녹음 검사"
-          description="녹음 파일을 올리면 보이스피싱인지 확인해 드려요"
-        />
-        <ActionCard
-          href="/fraud"
-          icon="🖼️"
-          title="문자·화면 검사"
-          description="이체 내역이나 문자 캡처가 조작됐는지 확인해 드려요"
-        />
-        <ActionCard
-          href="/news"
-          icon="📰"
-          title="내 맞춤 뉴스"
-          description="가입한 금융상품과 관련된 소식만 모아 드려요"
-        />
-      </section>
-
-      <section className="rounded-2xl border-2 border-caution bg-caution-soft px-5 py-5">
-        <h2 className="text-lg font-bold text-caution">꼭 기억하세요</h2>
-        <ul className="mt-3 flex flex-col gap-3">
-          {SAFETY_TIPS.map((safetyTip) => (
-            <li key={safetyTip} className="flex gap-2 text-base text-ink">
-              <span aria-hidden="true" className="font-bold text-caution">
-                ·
-              </span>
-              {safetyTip}
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      <section className="rounded-2xl border-2 border-line bg-surface px-5 py-5">
-        <h2 className="text-lg font-bold text-ink">급할 때 연락하세요</h2>
-        <div className="mt-3 flex flex-col gap-3">
-          <a
-            href="tel:112"
-            className="flex min-h-[64px] items-center justify-center rounded-xl bg-danger px-4 text-lg font-bold text-white"
-          >
-            📞 경찰 112 신고하기
-          </a>
-          <a
-            href="tel:1332"
-            className="flex min-h-[64px] items-center justify-center rounded-xl border-2 border-brand px-4 text-lg font-bold text-brand"
-          >
-            🏛️ 금융감독원 1332 상담
-          </a>
+    <main>
+      <div className="mb-5 bg-navy px-10 py-[52px] text-white">
+        <div className="mb-2.5 text-xs font-semibold tracking-[0.3px] text-[#9fb0c6]">
+          금융 사기 탐지 서비스
         </div>
-      </section>
-    </div>
+        <h1 className="mb-3 text-[26px] font-bold leading-[1.4] tracking-tight">
+          화면 한 장으로
+          <br />
+          사기 여부를 확인하세요
+        </h1>
+        <p className="mb-6 text-sm leading-[1.6] text-[#c3ccd8]">
+          의심되는 화면을 올리면 사기 여부와 근거를 알려드립니다.
+        </p>
+        <div className="flex gap-2.5">
+          <Link
+            href="/fraud-check"
+            className="rounded-md bg-white px-[22px] py-3 text-[13.5px] font-semibold text-navy"
+          >
+            사기화면 판별 시작하기
+          </Link>
+          <Link
+            href="/news"
+            className="rounded-md border border-[#3a5578] px-[22px] py-3 text-[13.5px] font-semibold text-[#dfe6ee]"
+          >
+            금융 뉴스 감성 분석 보기
+          </Link>
+        </div>
+      </div>
+
+      <NewsBanner />
+
+      <div className="mb-6 grid grid-cols-1 gap-px border border-line bg-line sm:grid-cols-3">
+        {FEATURE_CARDS.map((card) => (
+          <Link key={card.href} href={card.href} className="bg-white p-6">
+            <div className="mb-3.5 flex h-[38px] w-[38px] items-center justify-center rounded-[7px] bg-line-soft text-navy">
+              <svg
+                className="h-[18px] w-[18px]"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={1.6}
+              >
+                {card.icon}
+              </svg>
+            </div>
+            <h3 className="mb-1.5 text-[14.5px] font-bold text-ink">
+              {card.title}
+              {card.badge ? (
+                <span className="ml-1.5 rounded-[3px] border border-caution-border bg-caution-bg px-1.5 py-0.5 text-[10px] font-bold text-caution">
+                  {card.badge}
+                </span>
+              ) : null}
+            </h3>
+            <p className="text-[12.5px] leading-[1.6] text-ink-sub">
+              {card.description}
+            </p>
+          </Link>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 gap-px border border-line bg-line sm:grid-cols-3">
+        {STATS.map((stat) => (
+          <div key={stat.label} className="bg-white p-5 text-center">
+            <div className="text-xl font-bold text-navy">{stat.num}</div>
+            <div className="mt-1 text-xs text-ink-sub">{stat.label}</div>
+          </div>
+        ))}
+      </div>
+    </main>
   );
 }

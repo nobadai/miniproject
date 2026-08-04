@@ -1,8 +1,9 @@
-// 목적: Backend 공통 응답 구조를 Frontend Type으로 정의한다.
-// 주요 역할: 모든 API 호출이 동일한 성공 여부/데이터/메시지 형태를 공유하도록 한다.
+// 목적: Backend 공통 API 응답 계약(ApiResponse)의 Frontend 대응 타입을 정의한다.
+// 주요 역할: Backend의 success/data/message 구조를 그대로 미러링해 API 연동 담당자가
+//           재사용할 수 있게 한다. API JSON 필드는 snake_case 규칙을 유지한다.
 
-export interface ApiResponse<TData> {
+export interface ApiResponse<T> {
   success: boolean;
-  data?: TData | null;
-  message?: string | null;
+  data: T | null;
+  message: string | null;
 }

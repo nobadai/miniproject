@@ -7,6 +7,12 @@ services:
       context: ./frontend
       args:
         NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000}
+    # Server Component의 fetch는 Browser가 아니라 이 Container 안(Node.js)에서
+    # 실행되므로, Browser 기준 주소(NEXT_PUBLIC_API_BASE_URL)가 아니라 Container 간
+    # 통신 주소를 따로 전달한다. frontend/utils/api_client.ts가 Server 실행
+    # 환경에서 이 값을 우선 사용한다.
+    environment:
+      BACKEND_INTERNAL_URL: http://backend:8000
     ports:
       - "3000:3000"
     depends_on:
