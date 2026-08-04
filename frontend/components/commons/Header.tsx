@@ -1,6 +1,9 @@
 // 목적: 모든 화면이 공유하는 상단 헤더(브랜드, 네비게이션, 계정 영역)를 정의한다.
 // 주요 역할: 현재 경로에 따라 네비게이션 활성 상태를 표시하고, services/user.ts에서
-//           가져온 프로필을 보여준다. 아직 구현 전이라 호출이 실패하면 기본값을 보여준다.
+//           가져온 프로필을 보여준다. 호출이 실패하면(미로그인 등) 기본값을 보여준다.
+//           Header는 Root Layout에 있어 페이지를 이동해도 다시 마운트되지 않으므로,
+//           로그인 직후 등 로그인 상태 변화를 반영하려면 경로(pathname)가 바뀔 때마다
+//           프로필을 다시 가져와야 한다(그렇지 않으면 로그인해도 계속 "게스트"로 보임).
 
 "use client";
 
@@ -36,12 +39,13 @@ export default function Header() {
         if (isMounted) setProfile(data);
       })
       .catch(() => {
-        // services/user.ts가 아직 구현되지 않아 기본값을 그대로 사용한다.
+        // 미로그인 등으로 조회에 실패하면 기본값(게스트)을 그대로 사용한다.
+        if (isMounted) setProfile(DEFAULT_PROFILE);
       });
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [pathname]);
 
   const avatarInitial = profile.name.slice(0, 1) || "?";
 
@@ -63,7 +67,7 @@ export default function Header() {
             <path d="M9 12l2 2 4-4" />
           </svg>
         </span>
-        2조
+        금융 안심이
       </Link>
 
       <div className="flex items-center gap-[18px]">
@@ -100,13 +104,6 @@ export default function Header() {
           <span>
             안녕하세요, <b className="text-ink">{profile.name}</b>님
           </span>
-        </Link>
-
-        <Link
-          href="/login"
-          className="rounded-md border border-[#c9ced6] bg-white px-3.5 py-2 text-[12.5px] font-semibold text-ink"
-        >
-          로그인 화면 보기
         </Link>
       </div>
     </div>

@@ -48,8 +48,8 @@ export default function NewsListView({ articles }: { articles: NewsArticle[] }) 
       </div>
 
       <div className="flex flex-col">
-        {filteredArticles.map((article) => (
-          <NewsCard key={article.url} article={article} />
+        {filteredArticles.map((article, index) => (
+          <NewsCard key={article.url} article={article} isLatest={index === 0} />
         ))}
       </div>
 

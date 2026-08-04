@@ -82,9 +82,6 @@ export default function FraudCheckView() {
             <path d="M9 21h6" />
           </svg>
           보이스피싱 판별
-          <span className="rounded-[3px] border border-caution-border bg-caution-bg px-1.5 py-0.5 text-[10px] font-bold text-caution">
-            구현 예정
-          </span>
         </button>
       </div>
 

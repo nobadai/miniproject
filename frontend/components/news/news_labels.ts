@@ -25,3 +25,16 @@ export const NEWS_BRIEF_TYPE_LABEL: Record<NewsBriefType, string> = {
   morning: "오전시황",
   closing: "마감시황",
 };
+
+// 뉴스 카드/배너가 공통으로 쓰는 짧은 날짜 표시("2026.07.31").
+export function formatNewsListDate(publishedAt: string): string {
+  return new Intl.DateTimeFormat("ko-KR", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  })
+    .format(new Date(publishedAt))
+    .replace(/\. /g, ".")
+    .replace(/\.$/, "");
+}

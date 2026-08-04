@@ -1,6 +1,6 @@
 // 목적: 홈 화면의 금융 뉴스 배너를 정의한다.
-// 주요 역할: services/news.ts에서 뉴스 목록을 가져와 2건씩 묶어 5초마다 자동으로 넘긴다.
-//           Client Component라 데이터를 useEffect에서 비동기로 가져온다.
+// 주요 역할: services/news.ts에서 뉴스 목록을 가져와 최신 2건만 고정으로 보여준다
+//           (자동 넘김 없음). Client Component라 데이터를 useEffect에서 비동기로 가져온다.
 
 "use client";
 
@@ -13,23 +13,14 @@ import {
   NEWS_LABEL_TEXT,
   NEWS_LABEL_UNRESOLVED_CLASS,
   NEWS_LABEL_UNRESOLVED_TEXT,
+  formatNewsListDate,
 } from "./news_labels";
 import type { NewsArticle } from "../../types/news";
 
-const GROUP_SIZE = 2;
-const ROTATE_INTERVAL_MS = 5000;
-
-function chunk(articles: NewsArticle[], size: number): NewsArticle[][] {
-  const groups: NewsArticle[][] = [];
-  for (let i = 0; i < articles.length; i += size) {
-    groups.push(articles.slice(i, i + size));
-  }
-  return groups;
-}
+const LATEST_COUNT = 2;
 
 export default function NewsBanner() {
   const [articles, setArticles] = useState<NewsArticle[]>([]);
-  const [groupIndex, setGroupIndex] = useState(0);
 
   useEffect(() => {
     let isMounted = true;
@@ -46,21 +37,11 @@ export default function NewsBanner() {
     };
   }, []);
 
-  const groups = chunk(articles, GROUP_SIZE);
+  const latestArticles = articles.slice(0, LATEST_COUNT);
 
-  useEffect(() => {
-    if (groups.length === 0) return;
-    const timer = setInterval(() => {
-      setGroupIndex((current) => (current + 1) % groups.length);
-    }, ROTATE_INTERVAL_MS);
-    return () => clearInterval(timer);
-  }, [groups.length]);
-
-  if (groups.length === 0) {
+  if (latestArticles.length === 0) {
     return null;
   }
-
-  const activeGroup = groups[groupIndex] ?? groups[0];
 
   return (
     <div className="mb-5 overflow-hidden border border-line bg-white">
@@ -74,7 +55,7 @@ export default function NewsBanner() {
       </div>
 
       <div className="py-1">
-        {activeGroup.map((article) => (
+        {latestArticles.map((article) => (
           <Link
             key={article.url}
             href={`/news/${encodeBase64Url(article.url)}`}
@@ -90,18 +71,10 @@ export default function NewsBanner() {
             <span className="flex-1 text-[13.5px] font-medium text-ink">
               {article.title}
             </span>
+            <span className="shrink-0 text-[11px] text-ink-sub">
+              {formatNewsListDate(article.published_at)}
+            </span>
           </Link>
-        ))}
-      </div>
-
-      <div className="flex justify-center gap-[5px] pb-3 pt-2.5">
-        {groups.map((_, index) => (
-          <span
-            key={index}
-            className={`h-[5px] w-[5px] rounded-full ${
-              index === groupIndex ? "bg-navy" : "bg-[#d3d8e0]"
-            }`}
-          />
         ))}
       </div>
     </div>

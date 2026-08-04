@@ -78,11 +78,26 @@ export default async function NewsDetailPage({
         {formatPublishedAt(article.published_at)}
       </div>
 
-      <div className="mb-3 text-sm font-medium leading-[1.75] text-ink-body">
-        {article.summary ?? "아직 한 줄 요약이 준비되지 않았습니다."}
+      <div className="mb-4 rounded-md border border-line bg-[#fafbfc] p-4">
+        <div className="mb-1.5 flex items-center gap-1.5 text-[11.5px] font-bold text-navy">
+          <svg
+            className="h-3.5 w-3.5"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={1.8}
+          >
+            <path d="M12 3l1.8 4.6L18 9.5l-4.2 1.9L12 16l-1.8-4.6L6 9.5l4.2-1.9L12 3z" />
+            <path d="M19 14l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8.8-2z" />
+          </svg>
+          AI 요약
+        </div>
+        <div className="text-sm font-medium leading-[1.75] text-ink-body">
+          {article.summary ?? "아직 한 줄 요약이 준비되지 않았습니다."}
+        </div>
       </div>
 
-      <div className="mb-4 flex items-center gap-2">
+      <div className="mb-1.5 flex items-center gap-2">
         <span
           className={`shrink-0 rounded-[3px] px-2.5 py-1 text-[11.5px] font-bold ${badgeClass}`}
         >
@@ -99,7 +114,7 @@ export default async function NewsDetailPage({
         <ul className="mb-4 flex flex-col gap-1.5 text-[12.5px] leading-[1.6] text-ink-sub">
           {article.evidence.map((evidence, index) => (
             <li key={index}>
-              <b className="font-semibold text-ink">근거</b> — {evidence.sentence}
+              {evidence.sentence}
               {evidence.is_quote && (
                 <span className="ml-1 text-[11px] text-ink-sub">(전문가 인용)</span>
               )}
