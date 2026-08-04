@@ -1,27 +1,48 @@
 # Frontend API 연동 명세서
 
 `frontend/services/` 안의 함수를 실제 Backend API 호출로 교체하기 위한 안내 문서다.
-"확정" 표시가 없는 기능(로그인/회원가입/마이페이지/뉴스)은 아직 Backend API 자체가
-없어 Frontend에서 추정으로 만든 타입/함수이며, 실제 스펙이 나오면 필드명·엔드포인트가
-달라질 수 있다.
+2026-08-03에 `backend/app/routers/`, `backend/app/schemas/`를 직접 읽어 아래 10개
+함수의 Endpoint·요청·응답 전부를 실제 코드 기준으로 확정했다("추정" 표시는 더 이상
+없다). Backend 코드는 이 문서 갱신 과정에서 읽기만 했고 수정하지 않았다.
 
 ## 전체 요약
 
-| 함수 | 파일 | 엔드포인트 확정 여부 | 연결 위치 |
-| --- | --- | --- | --- |
-| `analyzeFraudScreen` | `services/fraud_analysis.ts` | **확정** — `POST /fraud-analysis` | `app/fraud-check/FraudCheckView.tsx` (`ScreenCheckPanel`) |
-| `analyzeVoicePhishing` | `services/voice_phishing.ts` | **확정** — `POST /voice-phishing/analysis` | `app/fraud-check/FraudCheckView.tsx` (`VoiceCheckPanel`) |
-| `getNewsArticles` | `services/news.ts` | 미확정 — 백엔드 미구현 (프론트 추정) | `app/news/page.tsx`, `components/news/NewsBanner.tsx` |
-| `getNewsArticleById` | `services/news.ts` | 미확정 — 백엔드 미구현 (프론트 추정) | `app/news/[id]/page.tsx` |
-| `login` | `services/auth.ts` | 미확정 — 백엔드 미구현 (프론트 추정) | `app/login/page.tsx` |
-| `signup` | `services/auth.ts` | 미확정 — 백엔드 미구현 (프론트 추정) | `app/signup/page.tsx` |
-| `logout` | `services/auth.ts` | 미확정 — 백엔드 미구현 (프론트 추정) | 없음 — 아직 어디서도 호출하지 않음 |
-| `getMyProfile` | `services/user.ts` | 미확정 — 백엔드 미구현 (프론트 추정) | `components/commons/Header.tsx`, `app/mypage/page.tsx`, `app/mypage/edit/page.tsx` |
-| `updateMyProfile` | `services/user.ts` | 미확정 — 백엔드 미구현 (프론트 추정) | 없음 — 아직 어디서도 호출하지 않음 |
-| `withdrawMyAccount` | `services/user.ts` | 미확정 — 백엔드 미구현 (프론트 추정) | 없음 — 아직 어디서도 호출하지 않음 |
+| 함수 | 파일 | 실제 Endpoint(확정) | 인증 필요 | 연결 위치 |
+| --- | --- | --- | --- | --- |
+| `analyzeFraudScreen` | `services/fraud_analysis.ts` | `POST /fraud-analysis` | 필요(쿠키) | `app/fraud-check/FraudCheckView.tsx` (`ScreenCheckPanel`) |
+| `analyzeVoicePhishing` | `services/voice_phishing.ts` | `POST /voice-phishing/analysis` | 필요(쿠키) | `app/fraud-check/FraudCheckView.tsx` (`VoiceCheckPanel`) |
+| `getNewsArticles` | `services/news.ts` | `GET /news` | 불필요 | `app/news/page.tsx`, `components/news/NewsBanner.tsx` |
+| `getNewsArticleById` | `services/news.ts` | 없음(목록을 받아 `url`로 필터링) | 불필요 | `app/news/[url]/page.tsx` |
+| `login` | `services/auth.ts` | `POST /auth/login` | 불필요 | `app/login/page.tsx` |
+| `signup` | `services/auth.ts` | `POST /auth/signup` | 불필요 | `app/signup/page.tsx` |
+| `logout` | `services/auth.ts` | `POST /auth/logout` | 필요(쿠키) | `components/commons/LogoutButton.tsx` → `app/mypage/page.tsx` |
+| `getMyProfile` / `getMyProfileForServerComponent` | `services/user.ts` / `services/user_server.ts` | `GET /users/me` | 필요(쿠키) | `components/commons/Header.tsx`(Client), `app/mypage/page.tsx`·`app/mypage/edit/page.tsx`(Server) |
+| `updateMyProfile` | `services/user.ts` | `PATCH /users/me` | 필요(쿠키) | `app/mypage/edit/EditProfileForm.tsx` |
+| `withdrawMyAccount` | `services/user.ts` | `DELETE /users/me` | 필요(쿠키) | `app/mypage/withdraw/page.tsx` |
 
-**확정 2개(사기화면/보이스피싱)** — 실제 Backend Pydantic Schema와 필드 단위로 대조 완료.
-**미확정 8개(뉴스/인증/마이페이지)** — Backend API 자체가 없어 Frontend 추정치.
+**10개 전부 실제 Endpoint를 확정하고 fetch 구현까지 완료**했다. `analyzeFraudScreen`/
+`analyzeVoicePhishing`은 이전에도 확정이었고, 나머지 8개(뉴스/인증/마이페이지)는
+이번에 `backend/app/routers/`, `backend/app/schemas/` 실제 코드로 처음 확정했다.
+
+---
+
+## 인증 공통 사항
+
+Backend는 JWT를 `access_token`이라는 이름의 **HttpOnly 쿠키**에 담아 발급한다
+(`backend/app/core/security.py`). 로그인 성공 시 Backend가 `Set-Cookie`로 발급하고,
+로그아웃 시 같은 속성으로 삭제한다. `access_token` 쿠키가 필요한 Endpoint는 모두
+`fetch` 옵션에 `credentials: "include"`가 있어야 브라우저가 쿠키를 저장·전송한다.
+
+인증이 필요한 Endpoint에 쿠키 없이(비로그인 상태로) 요청하면 `backend/app/core/dependencies.py`의
+`get_current_user`가 **401**과 함께 FastAPI 기본 오류 형식 `{"detail": "인증이 필요합니다."}`을
+반환한다(공통 `ApiResponse` 포맷이 아님). `frontend/utils/api_client.ts`의
+`unwrapApiResponse`는 `message`가 없으면 `detail`을 보조로 읽으므로, 이 경우 화면에는
+그대로 **"인증이 필요합니다."** 에러가 표시된다 — 비로그인 상태로 사기화면/보이스피싱
+판별을 시도하면 이 메시지가 뜨는 것이 정상 동작이다.
+
+로그아웃(`POST /auth/logout`)과 회원탈퇴(`DELETE /users/me`)는 **204 No Content**로
+Body가 없다. `unwrapApiResponse`는 `response.status === 204`를 성공으로 간주해 바로
+반환한다(JSON 파싱을 시도하지 않는다).
 
 ---
 
@@ -29,99 +50,165 @@
 
 - **파일**: `frontend/services/fraud_analysis.ts`
 - **시그니처**: `analyzeFraudScreen(file: File): Promise<FraudAnalysisResult>`
-- **엔드포인트**: **확정** — `POST /fraud-analysis` (`multipart/form-data`, 필드명 `file`)
-- **요청/응답 타입 대조**: **일치**. `backend/app/schemas/fraud_analysis.py`의 `FraudAnalysisResult`(`verdict`, `tamper_types`, `reasoning`, `confidence`, `undetermined_reason`)와 `frontend/types/fraud_analysis.ts`의 `FraudAnalysisResult`가 필드명·타입·`verdict` 리터럴 3종까지 동일하다.
-- **호출 위치**: `app/fraud-check/FraudCheckView.tsx`의 `ScreenCheckPanel` — "판별하기" 버튼 클릭 시 `handleAnalyze`에서 호출하고, 성공하면 `FraudResultCard`에 결과를 props로 전달한다.
-- **끝나는지**: **거의 끝난다.** 함수 내부의 `throw new Error("not implemented")`를 실제 `fetch(NEXT_PUBLIC_API_BASE_URL + "/fraud-analysis", { method: "POST", body: formData })` 호출로 바꾸고, 응답 JSON에서 `ApiResponse<FraudAnalysisResult>`의 `data`를 꺼내 반환하도록만 고치면 된다. 호출부(`FraudCheckView.tsx`)는 이미 로딩/에러/결과 상태까지 연결되어 있어 추가로 손볼 필요가 없다.
+- **Endpoint**: `POST /fraud-analysis` (`multipart/form-data`, 필드명 `file`) — **인증 필요**
+  (`backend/app/routers/fraud_analysis.py`의 `current_user: CurrentUser` 의존성).
+- **요청/응답 타입 대조**: 일치. `backend/app/schemas/fraud_analysis.py`의
+  `FraudAnalysisResult`(`verdict`, `tamper_types`, `reasoning`, `confidence`,
+  `undetermined_reason`)와 `frontend/types/fraud_analysis.ts`가 동일하다.
+- **호출 위치**: `app/fraud-check/FraudCheckView.tsx`의 `ScreenCheckPanel`.
+- **상태**: 완료. 비로그인 상태로 호출하면 401 → "인증이 필요합니다." 에러 배너가 뜬다.
 
 ## 2. `analyzeVoicePhishing`
 
 - **파일**: `frontend/services/voice_phishing.ts`
 - **시그니처**: `analyzeVoicePhishing(file: File): Promise<VoicePhishingAnalysis>`
-- **엔드포인트**: **확정** — `POST /voice-phishing/analysis` (`multipart/form-data`, 필드명 `file`)
-- **요청/응답 타입 대조**: **일치**. `backend/app/schemas/voice_phishing.py`의 `VoicePhishingAnalysis`(`audio_filename`, `transcript_id`, `prediction`, `fusion_raw_score`, `fusion_score`, `rule_score`, `rule_categories`, `sequence_score`, `transitions`, `koelectra_score`, `decision_reason`, `turns[].{idx,speaker,text}`)와 `frontend/types/voice_phishing.ts`가 필드 순서까지 동일하다.
-- **호출 위치**: `app/fraud-check/FraudCheckView.tsx`의 `VoiceCheckPanel` — "판별하기" 버튼 클릭 시 `handleAnalyze`에서 호출하고, 성공하면 `VoicePhishingResultCard`에 결과를 props로 전달한다.
-- **끝나는지**: **거의 끝난다.** `analyzeFraudScreen`과 동일한 패턴으로 `fetch` 호출만 채우면 된다. 다만 백엔드 라우터(`backend/app/routers/voice_phishing.py`)는 실패 시에도 `200`이 아니라 상태 코드를 `response.status_code`로 직접 바꿔 `ApiResponse{success:false}`를 반환하는 방식이라(HTTPException을 던지지 않음), 성공 실패를 `success` 필드로도 판단해야 하는지 확인이 필요하다. 이 부분만 유의하면 된다.
+- **Endpoint**: `POST /voice-phishing/analysis` (`multipart/form-data`, 필드명 `file`) —
+  **인증 필요**(`backend/app/routers/voice_phishing.py`의 `current_user: CurrentUser`).
+- **요청/응답 타입 대조**: 일치.
+- **호출 위치**: `app/fraud-check/FraudCheckView.tsx`의 `VoiceCheckPanel`.
+- **상태**: 완료. Backend 라우터가 실패 시(파일명 없음, 200MB 초과, 빈 파일, 지원하지
+  않는 형식, 서버 오류)에도 `HTTPException`을 던지지 않고 `response.status_code`를
+  직접 바꾸며 `ApiResponse{success:false, message}`를 반환한다 — `unwrapApiResponse`가
+  HTTP 상태와 무관하게 `success` 필드로 판단하므로 정상 처리된다. 단, **인증 실패
+  (401)만은 `CurrentUser` 의존성이 Handler 진입 전에 걸어서 여전히 FastAPI
+  `HTTPException` 형태(`{"detail": "..."}）**로 온다.
 
 ## 3. `getNewsArticles`
 
 - **파일**: `frontend/services/news.ts`
 - **시그니처**: `getNewsArticles(): Promise<NewsArticle[]>`
-- **엔드포인트**: **미확정 — 백엔드 미구현.** `PROJECT_RULES.md`의 URL 네이밍 예시(`news_article.py` → `/news-article`)를 참고해 임시로 `GET /news-article`을 TODO 주석에 적어뒀을 뿐, 실제로 만들어진 라우터는 아니다.
-- **요청/응답 타입 대조**: **백엔드 미확정 — 대조 불가.** `frontend/types/news.ts`의 `NewsArticle`(`sessionLabel` 등 camelCase)은 전부 Frontend 추정 타입이라 실제 백엔드 스키마와 비교할 대상 자체가 없다.
-- **호출 위치**: `app/news/page.tsx`(Server Component, 페이지 진입 시 호출 후 `NewsListView`에 결과를 props로 전달), `components/news/NewsBanner.tsx`(Client Component, `useEffect`에서 호출).
-- **끝나는지**: **아니다, 구조 정리가 더 필요하다.** 지금은 `components/news/news_data.ts`의 더미 배열을 그대로 반환하는 상태다(실제 fetch 아님). 실제 연동 시:
-  1. 백엔드 응답이 snake_case라면, 이 함수 내부에서 fetch 응답을 받아 `NewsArticle`(camelCase)로 매핑하는 코드가 추가로 필요하다(현재는 그냥 그대로 반환만 함).
-  2. 이 함수가 `components/news/news_data.ts`를 import하고 있는데, 실제 fetch로 바뀌면 이 import는 제거해야 한다.
+- **Endpoint**: `GET /news` (확정 — 이전에는 `/news-article`로 잘못 추정했었다.
+  `backend/app/routers/news.py`가 파일명 `news.py` 기준 `/news` Prefix로 자동 등록됨).
+- **응답 구조(확정)**: `backend/app/schemas/news.py`의 `News` 그대로.
+  - `market_date`(date), `brief_type`("morning" | "closing"), `title`, `published_at`(datetime),
+    `url`, `source`, `body`
+  - `summary: string | null` — 요약 배치가 아직 처리하지 않은 기사는 `null`
+  - `label: "POS" | "NEU" | "NEG" | null` — 감성 판정 배치가 아직 처리하지 않은 기사는 `null`
+    (`backend/app/clients/gemma_client.py`의 `SENTIMENT_SCHEMA`가 정한 값)
+  - `evidence: {sentence: string, is_quote: boolean}[]` — 판정 근거 문장 배열(0개 이상)
+  - **`id` 필드가 없다.** `News` Response Schema는 의도적으로 id를 빼서 화면에 내부
+    식별자가 노출되지 않게 막아뒀다(`backend/app/schemas/news.py` 주석 참고).
+- **Frontend 대응**: `frontend/types/news.ts`를 위 구조 그대로 재정의했다. 이전에 있던
+  `id`(number), `session`("morning"|"close"), `sentiment`("pos"|"neg"|"neu"),
+  `sessionLabel`, `time`, `reason` 필드는 전부 삭제했다(더미 데이터 전용 필드였음).
+- **호출 위치**: `app/news/page.tsx`(Server), `components/news/NewsBanner.tsx`(Client).
+- **상태**: 완료. `components/news/news_data.ts`(더미 배열)는 삭제했고, 감성/시황 표시용
+  상수는 `components/news/news_labels.ts`로 새로 뺐다.
 
 ## 4. `getNewsArticleById`
 
 - **파일**: `frontend/services/news.ts`
-- **시그니처**: `getNewsArticleById(id: number): Promise<NewsArticle | null>`
-- **엔드포인트**: **미확정 — 백엔드 미구현.** TODO 주석에 `GET /news-article/{id}`로 적어뒀으나 실제 라우터는 없다.
-- **요청/응답 타입 대조**: **백엔드 미확정 — 대조 불가.**
-- **호출 위치**: `app/news/[id]/page.tsx`(Server Component) — `params`의 `id`를 숫자로 변환해 호출하고, 결과가 없으면 `notFound()`.
-- **끝나는지**: `getNewsArticles`와 동일한 이유로 **아니다.** 다만 호출부는 이미 `notFound()` 처리까지 되어 있어 추가로 손볼 필요는 없다.
+- **시그니처**: `getNewsArticleById(articleUrl: string): Promise<NewsArticle | null>`
+- **Endpoint**: 없음(단건 조회 API 미제공, 확정). `getNewsArticles()`로 전체 목록을 받아
+  `article.url === articleUrl`로 필터링한다.
+- **식별자 변경**: Backend에 `id`가 없어 원문 URL(`url`)을 고유 키로 쓴다. 라우트 폴더를
+  `app/news/[id]/` → `app/news/[url]/`로 이름을 바꿨고, 링크는
+  `/news/${encodeURIComponent(article.url)}`로 생성한다. 상세 페이지에서는
+  `decodeURIComponent`로 되돌려 조회한다.
+- **호출 위치**: `app/news/[url]/page.tsx`.
+- **상태**: 완료.
 
 ## 5. `login`
 
 - **파일**: `frontend/services/auth.ts`
 - **시그니처**: `login(payload: LoginPayload): Promise<UserProfile>` — `LoginPayload{email, password}`
-- **엔드포인트**: **미확정 — 백엔드 미구현.**
-- **요청/응답 타입 대조**: **백엔드 미확정 — 대조 불가.** `LoginPayload`/`UserProfile` 필드명은 전부 Frontend 추정.
-- **호출 위치**: `app/login/page.tsx` — 로그인 폼 `onSubmit`에서 `FormData`로 `email`/`password`를 모아 호출하고, 성공하면 `/`로 이동, 실패하면 에러 배너를 보여준다.
-- **끝나는지**: **아니다, 추가로 손볼 게 있다.**
-  1. 실제 인증이 세션/쿠키 기반인지 토큰 기반인지에 따라 로그인 성공 후 토큰/세션을 어디에 저장할지(쿠키, localStorage 등) 정해야 하는데, 지금은 그 저장 로직이 전혀 없다.
-  2. `Header.tsx`/`mypage`가 "로그인 상태"를 아는 방법이 지금은 없다(항상 `getMyProfile()`을 시도하는 구조). 로그인 여부에 따라 다르게 동작해야 한다면 별도 상태 관리(전역 상태, Context 등)가 필요하며, 이건 이번 작업 범위 밖이라 손대지 않았다.
+- **Endpoint**: `POST /auth/login` (확정 — `backend/app/routers/auth.py`). 성공 시 200 +
+  `ApiResponse<UserResponse>`, 응답 Header에 `Set-Cookie: access_token=...`(HttpOnly).
+  실패(이메일/비밀번호 불일치) 시 401 + `{"detail": "이메일 또는 비밀번호가 올바르지
+  않습니다."}`.
+- **요청/응답 타입 대조**: 일치(아래 `UserResponse` 참고).
+- **호출 위치**: `app/login/page.tsx`.
+- **상태**: 완료.
 
 ## 6. `signup`
 
 - **파일**: `frontend/services/auth.ts`
-- **시그니처**: `signup(payload: SignupPayload): Promise<UserProfile>` — `SignupPayload{name, email, password, phone}`
-- **엔드포인트**: **미확정 — 백엔드 미구현.**
-- **요청/응답 타입 대조**: **백엔드 미확정 — 대조 불가.**
-- **호출 위치**: `app/signup/page.tsx` — 가입 폼 `onSubmit`에서 `FormData`로 값을 모아 호출하고, 성공하면 `/login`으로 이동, 실패하면 에러 배너.
-- **끝나는지**: 위 `login`과 동일한 이유(인증 상태 관리 미구현)로 **아니다.** 다만 화면의 폼 제출 흐름 자체는 fetch로 바꾸기만 하면 된다.
+- **시그니처**: `signup(payload: SignupPayload): Promise<UserProfile>` — `SignupPayload{name, email, password}`
+- **Endpoint**: `POST /auth/signup` (확정). 성공 시 201 + `ApiResponse<UserResponse>`.
+  이메일 중복 시 409 + `{"detail": "이미 가입된 이메일입니다."}`.
+- **요청 타입 변경**: Backend `SignupRequest`(`backend/app/schemas/auth.py`)는
+  `email`/`password`/`name`만 받고 `model_config = ConfigDict(extra="forbid")`라서
+  다른 필드(`phone` 등)를 보내면 422가 난다. 기존 `SignupPayload`에 있던 `phone`
+  필드를 제거했고, 회원가입 화면의 휴대폰 번호 입력란도 함께 지웠다.
+- **호출 위치**: `app/signup/page.tsx`.
+- **상태**: 완료.
 
 ## 7. `logout`
 
 - **파일**: `frontend/services/auth.ts`
 - **시그니처**: `logout(): Promise<void>`
-- **엔드포인트**: **미확정 — 백엔드 미구현.**
-- **요청/응답 타입 대조**: 응답 타입 없음(`void`).
-- **호출 위치**: **없음.** `app/mypage/page.tsx`의 "로그아웃" 메뉴는 지금 `logout()`을 호출하지 않고 그냥 `/login`으로 이동하는 `Link`다. 이번 요청 범위(로그인/회원가입 버튼만 연결)에 포함되지 않아 그대로 두었다.
-- **끝나는지**: **아니다.** 함수 구현은 물론, `app/mypage/page.tsx`의 "로그아웃" `Link`를 `logout()`을 호출하는 버튼으로 바꾸는 작업이 추가로 필요하다.
+- **Endpoint**: `POST /auth/logout` (확정). 성공 시 **204 No Content**(Body 없음), 인증
+  쿠키를 삭제한다.
+- **호출 위치**: `app/mypage/page.tsx`의 "로그아웃" — 쿠키 삭제 요청이 필요해 Client
+  Component `components/commons/LogoutButton.tsx`로 분리했다. 클릭하면 `logout()`을
+  호출한 뒤(실패해도) `/login`으로 이동한다.
+- **상태**: 완료(이번 작업에서 새로 연결).
 
-## 8. `getMyProfile`
+## 8. `getMyProfile` / `getMyProfileForServerComponent`
 
-- **파일**: `frontend/services/user.ts`
-- **시그니처**: `getMyProfile(): Promise<UserProfile>`
-- **엔드포인트**: **미확정 — 백엔드 미구현.** TODO 주석엔 `GET /users/me`로 적어뒀으나 실제 라우터는 없다.
-- **요청/응답 타입 대조**: **백엔드 미확정 — 대조 불가.**
-- **호출 위치**: `components/commons/Header.tsx`(Client, `useEffect`에서 호출해 계정 영역에 표시), `app/mypage/page.tsx`(Server, 프로필 카드), `app/mypage/edit/page.tsx`(Server, 입력값 기본값). 세 곳 모두 실패 시 `DEFAULT_PROFILE`(이름 "게스트" 등)로 대체하도록 이미 처리돼 있다.
-- **끝나는지**: **거의 끝난다.** fetch 호출만 채우면 세 화면 모두 자동으로 반영된다. 단, 인증이 필요한 API라면(로그인 안 한 상태에서 호출) 401 등 처리를 어떻게 할지는 `login` 항목의 "로그인 상태 관리 미구현" 문제와 연결되어 있다.
+- **파일**: `frontend/services/user.ts`(Client 전용) / `frontend/services/user_server.ts`(Server 전용)
+- **시그니처**: `(): Promise<UserProfile>`
+- **Endpoint**: `GET /users/me` (확정 — `backend/app/routers/users.py`). 200 +
+  `ApiResponse<UserResponse>`. 비로그인 시 401.
+- **응답 타입(확정) — `UserResponse`**(`backend/app/schemas/user.py`):
+  ```
+  { id: number, email: string, name: string, is_active: boolean,
+    created_at: string, updated_at: string }
+  ```
+  이전에 Frontend가 추정으로 넣어뒀던 `phone`, `joinedAt` 필드는 실제 Backend에
+  없어 `frontend/types/user.ts`에서 제거했다. 가입일이 필요하면 `created_at`을
+  그대로 쓰거나 화면에서 포맷한다(`app/mypage/page.tsx`의 `formatJoinedDate` 참고).
+- **Server Component 호출 이슈**: `credentials: "include"`는 Browser fetch에서만
+  로그인 쿠키를 자동으로 실어준다. `app/mypage/page.tsx`, `app/mypage/edit/page.tsx`는
+  Server Component라 그냥 `getMyProfile()`을 쓰면 방문자의 쿠키가 전달되지 않아 항상
+  미인증 상태로 응답받는다. 그래서 `next/headers`의 `cookies()`로 들어온 요청의
+  쿠키를 그대로 실어 보내는 `getMyProfileForServerComponent`를
+  `services/user_server.ts`에 별도로 뒀다(`next/headers`는 Server 전용 API라
+  Client Component인 `Header.tsx`가 import하는 `user.ts`와 파일을 분리해야 함).
+- **호출 위치**: `components/commons/Header.tsx`(Client → `user.ts`),
+  `app/mypage/page.tsx`, `app/mypage/edit/page.tsx`(Server → `user_server.ts`).
+- **상태**: 완료.
 
 ## 9. `updateMyProfile`
 
 - **파일**: `frontend/services/user.ts`
-- **시그니처**: `updateMyProfile(payload: UpdateProfilePayload): Promise<UserProfile>` — `UpdateProfilePayload{name, phone, currentPassword?, newPassword?}`
-- **엔드포인트**: **미확정 — 백엔드 미구현.**
-- **요청/응답 타입 대조**: **백엔드 미확정 — 대조 불가.**
-- **호출 위치**: **없음.** `app/mypage/edit/page.tsx`의 "저장하기"는 지금도 `Link`이고 `updateMyProfile()`을 호출하지 않는다. 이번 요청 범위에 포함되지 않아 그대로 두었다.
-- **끝나는지**: **아니다.** 함수 구현과 별개로, `app/mypage/edit/page.tsx`를 폼(`<form onSubmit>`)으로 바꾸고 `updateMyProfile()` 호출·로딩·에러 처리를 `login`/`signup`과 같은 패턴으로 추가해야 한다.
+- **시그니처**: `updateMyProfile(payload: UpdateProfilePayload): Promise<UserProfile>`
+- **Endpoint**: `PATCH /users/me` (확정). 200 + `ApiResponse<UserResponse>`.
+- **요청 타입(확정) — `UserUpdateRequest`**(`backend/app/schemas/user.py`,
+  `extra="forbid"`):
+  ```
+  { name?: string, current_password?: string, new_password?: string }
+  ```
+  `phone` 필드는 없어 제거했다. **검증 규칙**(`validate_update_fields`):
+  - `name`과 `new_password`가 둘 다 없으면 실패("이름 또는 새 비밀번호 중 하나
+    이상이 필요합니다.")
+  - `new_password`를 보내려면 `current_password`도 함께 보내야 하고 그 반대도 마찬가지
+  - `new_password`는 `current_password`와 달라야 한다
+  - 위반 시 422, 현재 비밀번호가 틀리면 401(`{"detail": "현재 비밀번호가 올바르지
+    않습니다."}`)
+- **호출 위치**: `app/mypage/edit/EditProfileForm.tsx`(신규 Client Component, "저장하기"
+  버튼) — 이름/비밀번호 폼 값을 위 검증 규칙에 맞게 조립해 호출한다. `app/mypage/edit/page.tsx`는
+  Server Component로 남기고 프로필 조회(`getMyProfileForServerComponent`)만 담당한다.
+- **상태**: 완료(이번 작업에서 새로 연결).
 
 ## 10. `withdrawMyAccount`
 
 - **파일**: `frontend/services/user.ts`
 - **시그니처**: `withdrawMyAccount(password: string): Promise<void>`
-- **엔드포인트**: **미확정 — 백엔드 미구현.**
-- **요청/응답 타입 대조**: 응답 타입 없음(`void`).
-- **호출 위치**: **없음.** `app/mypage/withdraw/page.tsx`의 "탈퇴하기" 버튼은 지금도 아무 동작이 없는 `<button>`이다.
-- **끝나는지**: **아니다.** `updateMyProfile`과 동일하게, 폼 제출 처리·확인 절차(비밀번호 입력값 전달)까지 추가로 구현해야 한다.
+- **Endpoint**: `DELETE /users/me` (확정). 성공 시 **204 No Content**, 소프트 삭제 후
+  인증 쿠키를 삭제한다. 현재 비밀번호가 틀리면 401.
+- **요청 타입**: `UserDeleteRequest{password}` — 기존 구현과 이미 일치했다.
+- **호출 위치**: `app/mypage/withdraw/page.tsx` — 정적 안내 화면이었던 것을 Client
+  Component로 바꿔 비밀번호 입력 + 동의 체크박스 + "탈퇴하기" 버튼에 연결했다. 성공
+  시 `/`로 이동한다.
+- **상태**: 완료(이번 작업에서 새로 연결).
 
 ---
 
-## 참고 — 이번 작업으로 바뀐 것 / 안 바뀐 것
+## 참고 — 남은 것 / 검증 안 된 것
 
-- **바뀜**: 사기화면·보이스피싱·뉴스는 실제 화면에서 서비스 함수를 호출하는 구조로 연결됨. `FraudResultCard`/`VoicePhishingResultCard`는 props 기반으로 바뀌어 더미 상수를 갖지 않음.
-- **안 바뀜**: `logout`, `updateMyProfile`, `withdrawMyAccount`는 여전히 호출 지점이 없음(요청 범위가 로그인/회원가입/프로필 조회까지였음). 로그인 성공 후 세션·토큰을 유지하는 전역 상태 관리도 아직 없음.
+- **인증 상태 전역 관리 없음.** 로그인 성공 후 "로그인했다"는 사실을 Header 등
+  다른 화면이 아는 방법이 없다(항상 `getMyProfile()`을 시도해 성공하면 로그인된
+  것으로 간주하는 구조). 전역 상태(Context 등)는 여전히 범위 밖이다.
+- **실제 Backend 서버 대상 검증 여부는 작업 시점의 최종 보고를 확인할 것.** 이
+  문서는 코드 대조 결과만 다루며, 브라우저로 직접 눌러본 결과는 다루지 않는다.

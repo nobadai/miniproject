@@ -6,21 +6,21 @@
 
 import { useState } from "react";
 import NewsCard from "../../components/news/NewsCard";
-import type { NewsArticle, NewsSession } from "../../types/news";
+import type { NewsArticle, NewsBriefType } from "../../types/news";
 
-type SessionFilter = "all" | NewsSession;
+type SessionFilter = "all" | NewsBriefType;
 
 const CHIPS: { value: SessionFilter; label: string }[] = [
   { value: "all", label: "전체" },
   { value: "morning", label: "오전시황" },
-  { value: "close", label: "마감시황" },
+  { value: "closing", label: "마감시황" },
 ];
 
 export default function NewsListView({ articles }: { articles: NewsArticle[] }) {
   const [session, setSession] = useState<SessionFilter>("all");
 
   const filteredArticles = articles.filter(
-    (article) => session === "all" || article.session === session
+    (article) => session === "all" || article.brief_type === session
   );
 
   return (
@@ -49,7 +49,7 @@ export default function NewsListView({ articles }: { articles: NewsArticle[] }) 
 
       <div className="flex flex-col">
         {filteredArticles.map((article) => (
-          <NewsCard key={article.id} article={article} />
+          <NewsCard key={article.url} article={article} />
         ))}
       </div>
 

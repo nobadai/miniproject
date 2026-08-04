@@ -7,17 +7,17 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { getNewsArticles } from "../../services/news";
-import { SENTIMENT_LABEL } from "./news_data";
+import { encodeBase64Url } from "../../utils/base64_url";
+import {
+  NEWS_LABEL_CLASS,
+  NEWS_LABEL_TEXT,
+  NEWS_LABEL_UNRESOLVED_CLASS,
+  NEWS_LABEL_UNRESOLVED_TEXT,
+} from "./news_labels";
 import type { NewsArticle } from "../../types/news";
 
 const GROUP_SIZE = 2;
 const ROTATE_INTERVAL_MS = 5000;
-
-const SENTIMENT_CLASS: Record<NewsArticle["sentiment"], string> = {
-  pos: "bg-safe-bg text-safe",
-  neg: "bg-alert-bg text-alert",
-  neu: "bg-line-soft text-ink-sub",
-};
 
 function chunk(articles: NewsArticle[], size: number): NewsArticle[][] {
   const groups: NewsArticle[][] = [];
@@ -33,9 +33,14 @@ export default function NewsBanner() {
 
   useEffect(() => {
     let isMounted = true;
-    getNewsArticles().then((data) => {
-      if (isMounted) setArticles(data);
-    });
+    getNewsArticles()
+      .then((data) => {
+        if (isMounted) setArticles(data);
+      })
+      .catch(() => {
+        // 뉴스 배너는 별도 에러 UI가 없어 실패 시 빈 배열로 두면 배너가 자동으로 숨겨진다.
+        if (isMounted) setArticles([]);
+      });
     return () => {
       isMounted = false;
     };
@@ -71,14 +76,16 @@ export default function NewsBanner() {
       <div className="py-1">
         {activeGroup.map((article) => (
           <Link
-            key={article.id}
-            href={`/news/${article.id}`}
+            key={article.url}
+            href={`/news/${encodeBase64Url(article.url)}`}
             className="flex items-center gap-2.5 px-[18px] py-3"
           >
             <span
-              className={`shrink-0 rounded-[3px] px-2.5 py-1 text-[11.5px] font-bold ${SENTIMENT_CLASS[article.sentiment]}`}
+              className={`shrink-0 rounded-[3px] px-2.5 py-1 text-[11.5px] font-bold ${
+                article.label ? NEWS_LABEL_CLASS[article.label] : NEWS_LABEL_UNRESOLVED_CLASS
+              }`}
             >
-              {SENTIMENT_LABEL[article.sentiment]}
+              {article.label ? NEWS_LABEL_TEXT[article.label] : NEWS_LABEL_UNRESOLVED_TEXT}
             </span>
             <span className="flex-1 text-[13.5px] font-medium text-ink">
               {article.title}

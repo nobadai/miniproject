@@ -1,17 +1,22 @@
 // 목적: 마이페이지 화면을 정의한다.
-// 주요 역할: services/user.ts에서 프로필을 가져와 보여준다. 아직 구현 전이라
-//           호출이 실패하면 기본값을 그대로 보여준다(에러를 화면 밖으로 전파하지 않음).
-//           최근 이용 내역은 아직 관련 API가 없어 더미 데이터를 유지한다.
+// 주요 역할: services/user_server.ts에서 로그인 쿠키를 실어 프로필을 가져와 보여준다.
+//           호출이 실패하면(백엔드 미구현·미로그인 등) 기본값을 그대로 보여준다
+//           (에러를 화면 밖으로 전파하지 않음). 최근 이용 내역은 아직 관련 API가
+//           없어 더미 데이터를 유지한다. "로그아웃"은 쿠키 삭제 요청이 필요해
+//           Client Component인 LogoutButton으로 분리했다.
 
 import Link from "next/link";
-import { getMyProfile } from "../../services/user";
+import LogoutButton from "../../components/commons/LogoutButton";
+import { getMyProfileForServerComponent } from "../../services/user_server";
 import type { UserProfile } from "../../types/user";
 
 const DEFAULT_PROFILE: UserProfile = {
-  name: "게스트",
+  id: 0,
   email: "",
-  phone: "",
-  joinedAt: "",
+  name: "게스트",
+  is_active: false,
+  created_at: "",
+  updated_at: "",
 };
 
 const HISTORY_ROWS = [
@@ -20,9 +25,20 @@ const HISTORY_ROWS = [
   { content: "카카오뱅크 송금 완료 화면", result: "정상", resultClassName: "text-safe", date: "2026.07.29 18:12" },
 ];
 
+function formatJoinedDate(createdAt: string): string | null {
+  if (!createdAt) return null;
+  return new Intl.DateTimeFormat("ko-KR", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  }).format(new Date(createdAt));
+}
+
 export default async function MyPage() {
-  const profile = await getMyProfile().catch(() => DEFAULT_PROFILE);
+  const profile = await getMyProfileForServerComponent().catch(() => DEFAULT_PROFILE);
   const avatarInitial = profile.name.slice(0, 1) || "?";
+  const joinedDate = formatJoinedDate(profile.created_at);
 
   return (
     <div className="grid grid-cols-1 gap-6 md:grid-cols-[240px_1fr]">
@@ -35,7 +51,7 @@ export default async function MyPage() {
           {profile.email || "이메일 정보 없음"}
         </div>
         <div className="mt-2.5 border-t border-line-soft pt-3 text-[11.5px] text-[#9aa1ab]">
-          {profile.joinedAt ? `${profile.joinedAt} 가입` : "가입일 정보 없음"}
+          {joinedDate ? `${joinedDate} 가입` : "가입일 정보 없음"}
         </div>
 
         <div className="mt-5 text-left">
@@ -54,12 +70,7 @@ export default async function MyPage() {
           >
             회원 탈퇴
           </Link>
-          <Link
-            href="/login"
-            className="block rounded-md px-2 py-2.5 text-[13px] text-ink-sub"
-          >
-            로그아웃
-          </Link>
+          <LogoutButton className="block w-full rounded-md px-2 py-2.5 text-left text-[13px] text-ink-sub" />
         </div>
       </div>
 

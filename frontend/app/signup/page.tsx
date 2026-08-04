@@ -1,7 +1,7 @@
 // 목적: 회원가입 화면을 정의한다.
-// 주요 역할: 입력값을 services/auth.ts의 signup()으로 전달한다.
-//           signup()은 아직 throw new Error("not implemented") 상태이므로,
-//           지금 가입을 시도하면 에러 상태 UI가 뜨는 것이 정상 동작이다.
+// 주요 역할: 입력값을 services/auth.ts의 signup()으로 POST /auth/signup에 전달한다.
+//           Backend SignupRequest가 email/password/name만 받아(2026-08-03 실제
+//           코드 대조 완료) 휴대폰 번호 입력란은 두지 않는다.
 
 "use client";
 
@@ -27,7 +27,6 @@ export default function SignupPage() {
         name: String(formData.get("name") ?? ""),
         email: String(formData.get("email") ?? ""),
         password: String(formData.get("password") ?? ""),
-        phone: String(formData.get("phone") ?? ""),
       });
       router.push("/login");
     } catch (cause) {
@@ -94,17 +93,6 @@ export default function SignupPage() {
               className="w-full rounded-md border border-[#c9ced6] px-[13px] py-[11px] text-[13.5px]"
             />
           </div>
-        </div>
-        <div className="mb-4">
-          <label className="mb-1.5 block text-[12.5px] font-semibold text-ink">
-            휴대폰 번호
-          </label>
-          <input
-            name="phone"
-            type="text"
-            placeholder="010-0000-0000"
-            className="w-full rounded-md border border-[#c9ced6] px-[13px] py-[11px] text-[13.5px]"
-          />
         </div>
         <div className="mb-[22px] mt-1 flex items-center gap-2 text-[12.5px] text-ink-sub">
           <input type="checkbox" id="agree" defaultChecked className="h-[15px] w-[15px]" />

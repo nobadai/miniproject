@@ -1,21 +1,25 @@
-// 목적: 개인정보 수정 화면을 정의한다.
-// 주요 역할: services/user.ts에서 가져온 현재 프로필을 입력값 기본값으로 채운다.
-//           아직 구현 전이라 호출이 실패하면 기본값을 그대로 보여준다.
+// 목적: 개인정보 수정 화면 진입점을 정의한다.
+// 주요 역할: services/user_server.ts에서 로그인 쿠키를 실어 가져온 현재 프로필을
+//           Client Component(EditProfileForm)에 전달한다. 폼 제출은 Browser
+//           fetch(updateMyProfile, 쿠키 포함)가 필요해 폼만 Client Component로
+//           분리했고, 이 페이지 자체는 Server Component를 유지한다.
 
-import Link from "next/link";
 import AuthCard from "../../../components/commons/AuthCard";
-import { getMyProfile } from "../../../services/user";
+import EditProfileForm from "./EditProfileForm";
+import { getMyProfileForServerComponent } from "../../../services/user_server";
 import type { UserProfile } from "../../../types/user";
 
 const DEFAULT_PROFILE: UserProfile = {
-  name: "게스트",
+  id: 0,
   email: "",
-  phone: "",
-  joinedAt: "",
+  name: "게스트",
+  is_active: false,
+  created_at: "",
+  updated_at: "",
 };
 
 export default async function EditProfilePage() {
-  const profile = await getMyProfile().catch(() => DEFAULT_PROFILE);
+  const profile = await getMyProfileForServerComponent().catch(() => DEFAULT_PROFILE);
 
   return (
     <AuthCard
@@ -28,92 +32,7 @@ export default async function EditProfilePage() {
         </>
       }
     >
-      <div className="mb-4">
-        <label className="mb-1.5 block text-[12.5px] font-semibold text-ink">
-          이름
-        </label>
-        <input
-          type="text"
-          defaultValue={profile.name}
-          className="w-full rounded-md border border-[#c9ced6] px-[13px] py-[11px] text-[13.5px]"
-        />
-      </div>
-      <div className="mb-4">
-        <label className="mb-1.5 block text-[12.5px] font-semibold text-ink">
-          이메일
-        </label>
-        <input
-          type="text"
-          defaultValue={profile.email}
-          disabled
-          className="w-full rounded-md border border-[#c9ced6] bg-[#f5f6f7] px-[13px] py-[11px] text-[13.5px] text-ink-sub"
-        />
-        <div className="mt-[5px] text-[11.5px] text-ink-sub">
-          이메일은 변경할 수 없습니다.
-        </div>
-      </div>
-      <div className="mb-4">
-        <label className="mb-1.5 block text-[12.5px] font-semibold text-ink">
-          휴대폰 번호
-        </label>
-        <input
-          type="text"
-          defaultValue={profile.phone}
-          className="w-full rounded-md border border-[#c9ced6] px-[13px] py-[11px] text-[13.5px]"
-        />
-      </div>
-
-      <div className="my-[22px] flex items-center gap-3 text-xs text-[#b6bcc4]">
-        <span className="h-px flex-1 bg-line" />
-        비밀번호 변경
-        <span className="h-px flex-1 bg-line" />
-      </div>
-
-      <div className="mb-4">
-        <label className="mb-1.5 block text-[12.5px] font-semibold text-ink">
-          현재 비밀번호
-        </label>
-        <input
-          type="password"
-          placeholder="현재 비밀번호를 입력하세요"
-          className="w-full rounded-md border border-[#c9ced6] px-[13px] py-[11px] text-[13.5px]"
-        />
-      </div>
-      <div className="mb-4 flex gap-3">
-        <div className="flex-1">
-          <label className="mb-1.5 block text-[12.5px] font-semibold text-ink">
-            새 비밀번호
-          </label>
-          <input
-            type="password"
-            placeholder="8자 이상"
-            className="w-full rounded-md border border-[#c9ced6] px-[13px] py-[11px] text-[13.5px]"
-          />
-        </div>
-        <div className="flex-1">
-          <label className="mb-1.5 block text-[12.5px] font-semibold text-ink">
-            새 비밀번호 확인
-          </label>
-          <input
-            type="password"
-            placeholder="다시 입력"
-            className="w-full rounded-md border border-[#c9ced6] px-[13px] py-[11px] text-[13.5px]"
-          />
-        </div>
-      </div>
-
-      <Link
-        href="/mypage"
-        className="block w-full rounded-md bg-navy py-[13px] text-center text-sm font-semibold text-white"
-      >
-        저장하기
-      </Link>
-      <Link
-        href="/mypage"
-        className="mt-3.5 block text-center text-[12.5px] text-ink-sub"
-      >
-        취소하고 돌아가기
-      </Link>
+      <EditProfileForm profile={profile} />
     </AuthCard>
   );
 }

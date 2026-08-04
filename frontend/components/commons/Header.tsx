@@ -17,10 +17,12 @@ const NAV_ITEMS = [
 ];
 
 const DEFAULT_PROFILE: UserProfile = {
-  name: "게스트",
+  id: 0,
   email: "",
-  phone: "",
-  joinedAt: "",
+  name: "게스트",
+  is_active: false,
+  created_at: "",
+  updated_at: "",
 };
 
 export default function Header() {

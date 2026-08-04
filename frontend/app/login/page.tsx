@@ -1,7 +1,6 @@
 // 목적: 로그인 화면을 정의한다.
-// 주요 역할: 이메일/비밀번호를 services/auth.ts의 login()으로 전달한다.
-//           login()은 아직 throw new Error("not implemented") 상태이므로,
-//           지금 로그인을 시도하면 에러 상태 UI가 뜨는 것이 정상 동작이다.
+// 주요 역할: 이메일/비밀번호를 services/auth.ts의 login()으로 POST /auth/login에
+//           전달한다. 성공하면 Backend가 HttpOnly 쿠키(access_token)를 발급한다.
 
 "use client";
 
